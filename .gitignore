@@ -1,0 +1,38 @@
+﻿# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/.vite/
+**/dist/
+**/build/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+*.tsbuildinfo
+
+# Existing platform apps are tracked in their own repositories for now.
+# We are building the new unified layer on top.
+Discord/
+Telegram/
+TikTok/

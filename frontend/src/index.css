@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+/* OmniDash base — uses Discord tokens for cohesion */
+:root {
+  --border: #3F4147;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg-primary);
+  color: var(--text-normal);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Subtle professional scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3F4147;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5865F2;
+}
+
+/* Utility for nice cards */
+.omni-card {
+  transition: transform 0.08s var(--ease-out), 
+              box-shadow 0.08s var(--ease-out), 
+              border-color 0.08s var(--ease-out);
+}
+.omni-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+}

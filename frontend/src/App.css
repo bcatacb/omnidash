@@ -1,0 +1,26 @@
+/* OmniDash component styles */
+.omni-card {
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+}
+.omni-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  border-color: #5865F2;
+}
+
+.platform-header {
+  border-bottom: 1px solid #3F4147;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+
+.mock-convo {
+  transition: background-color 0.1s ease;
+}
+.mock-convo:hover {
+  background-color: #2E3035;
+}
