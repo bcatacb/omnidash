@@ -46,6 +46,28 @@ let conversations: OmniConversation[] = [
     unreadCount: 0,
     archived: false,
   },
+  {
+    id: 'tg-conv-3',
+    platform: PLATFORM,
+    accountId: 'tg-acc-2',
+    peer: { id: 'u6', displayName: 'Marcus Lee', username: 'marclee' },
+    lastMessagePreview: 'The group is waiting for the final numbers.',
+    lastMessageAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+    lastMessageDirection: 'in',
+    unreadCount: 5,
+    archived: false,
+  },
+  {
+    id: 'tg-conv-4',
+    platform: PLATFORM,
+    accountId: 'tg-acc-1',
+    peer: { id: 'u8', displayName: 'Priya Singh', username: 'priya' },
+    lastMessagePreview: 'All good on my end, thanks!',
+    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    lastMessageDirection: 'out',
+    unreadCount: 0,
+    archived: true,
+  },
 ]
 
 const messages: Record<string, OmniMessage[]> = {
@@ -87,6 +109,37 @@ const messages: Record<string, OmniMessage[]> = {
       body: 'Can you resend the file? Thanks!',
       sentAt: new Date(Date.now() - 1000 * 60 * 65).toISOString(),
       author: { name: 'Lina Voss' },
+    },
+  ],
+  'tg-conv-3': [
+    {
+      id: 'tg-msg-3a',
+      conversationId: 'tg-conv-3',
+      platform: PLATFORM,
+      direction: 'in',
+      body: 'The group is waiting for the final numbers.',
+      sentAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+      author: { name: 'Marcus Lee' },
+    },
+    {
+      id: 'tg-msg-3b',
+      conversationId: 'tg-conv-3',
+      platform: PLATFORM,
+      direction: 'in',
+      body: 'Can you share the sheet link again?',
+      sentAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      author: { name: 'Marcus Lee' },
+    },
+  ],
+  'tg-conv-4': [
+    {
+      id: 'tg-msg-4',
+      conversationId: 'tg-conv-4',
+      platform: PLATFORM,
+      direction: 'out',
+      body: 'All good on my end, thanks!',
+      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+      author: { name: 'You' },
     },
   ],
 }
@@ -146,5 +199,64 @@ export const telegramAdapter: PlatformAdapter = {
   async archiveConversation(convId, archived) {
     const conv = conversations.find(c => c.id === convId)
     if (conv) conv.archived = archived
+  },
+
+  async simulateIncoming(convId, body) {
+    const conv = conversations.find(c => c.id === convId)
+    const peerName = conv?.peer.displayName || 'Them'
+    const text = body || (['Any update on this?', 'Perfect, thanks!', 'Let\'s sync tomorrow morning.'][Math.floor(Math.random()*3)])
+
+    const msg: OmniMessage = {
+      id: 'tg-in-' + Date.now(),
+      conversationId: convId,
+      platform: PLATFORM,
+      direction: 'in',
+      body: text,
+      sentAt: new Date().toISOString(),
+      author: { name: peerName },
+    }
+    if (!messages[convId]) messages[convId] = []
+    messages[convId].push(msg)
+
+    if (conv) {
+      conv.lastMessagePreview = text
+      conv.lastMessageAt = msg.sentAt
+      conv.lastMessageDirection = 'in'
+      conv.unreadCount = (conv.unreadCount || 0) + 1
+    }
+    return msg
+  },
+
+  async createConversation(peerName, initialMessage, accountId) {
+    const accId = accountId || accounts[0]?.id || 'tg-acc-1'
+    const newId = 'tg-conv-' + Date.now()
+    const peer = { id: 'peer-' + Date.now(), displayName: peerName, username: peerName.toLowerCase().replace(/\s+/g, '') }
+    const conv: OmniConversation = {
+      id: newId,
+      platform: PLATFORM,
+      accountId: accId,
+      peer,
+      lastMessagePreview: initialMessage || 'New conversation started',
+      lastMessageAt: new Date().toISOString(),
+      lastMessageDirection: initialMessage ? 'out' : null,
+      unreadCount: 0,
+      archived: false,
+    }
+    conversations.unshift(conv)
+
+    if (initialMessage) {
+      const msg: OmniMessage = {
+        id: 'tg-new-' + Date.now(),
+        conversationId: newId,
+        platform: PLATFORM,
+        direction: 'out',
+        body: initialMessage,
+        sentAt: new Date().toISOString(),
+        author: { name: 'You' },
+      }
+      if (!messages[newId]) messages[newId] = []
+      messages[newId].push(msg)
+    }
+    return conv
   },
 }

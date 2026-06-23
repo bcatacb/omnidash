@@ -25,4 +25,10 @@ export interface PlatformAdapter {
   markRead(convId: string): Promise<void>
 
   archiveConversation(convId: string, archived: boolean): Promise<void>
+
+  // Demo helper — simulates an inbound message from the peer (for live feel)
+  simulateIncoming?(convId: string, body?: string): Promise<OmniMessage>
+
+  // Demo: create a brand new conversation on this platform/account
+  createConversation?(peerName: string, initialMessage?: string, accountId?: string): Promise<OmniConversation>
 }

@@ -4,7 +4,7 @@ import {
   Bell, ArrowRight 
 } from 'lucide-react'
 import './App.css'
-import { getAllAdapters } from './adapters'
+import { getAllAdapters, getAdapter } from './adapters'
 import type { OmniConversation, OmniMessage, OmniAccount } from './types/omni'
 import { PLATFORM_COLOR, PLATFORM_LABEL } from './types/omni'
 
@@ -44,12 +44,21 @@ const PLATFORMS: Platform[] = [
 
 function App() {
   const [activeView, setActiveView] = useState<'home' | 'unified' | PlatformId>('home')
+  const [pendingUnifiedPlatform, setPendingUnifiedPlatform] = useState<PlatformId | null>(null)
 
   const currentPlatform = PLATFORMS.find(p => p.id === activeView) as Platform | undefined
 
   const goHome = () => setActiveView('home')
-  const goUnified = () => setActiveView('unified')
+  const goUnified = () => { setPendingUnifiedPlatform(null); setActiveView('unified') }
   const openPlatform = (id: PlatformId) => setActiveView(id)
+
+  function goToUnifiedFiltered(id: PlatformId) {
+    setPendingUnifiedPlatform(id)
+    setActiveView('unified')
+  }
+
+  // setPendingPlatformFilter kept for potential direct use; currently driven via goToUnifiedFiltered
+
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-normal)] font-sans">
@@ -134,6 +143,19 @@ function App() {
                 type="text" 
                 placeholder="Search all conversations..." 
                 className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-1 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                    // jump to unified with search term
+                    // we reuse the local query state inside by navigating; user can paste
+                    goUnified()
+                    // small UX: focus will be on the list search shortly
+                  }
+                }}
+                onFocus={() => {
+                  if (activeView !== 'unified') {
+                    // Hint: press enter or switch manually
+                  }
+                }}
               />
             </div>
 
@@ -150,8 +172,8 @@ function App() {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-auto bg-[var(--bg-primary)]">
           {activeView === 'home' && <HomeDashboard onOpenPlatform={openPlatform} onOpenUnified={goUnified} />}
-          {activeView === 'unified' && <UnifiedInbox />}
-          {currentPlatform && <PlatformView platform={currentPlatform} />}
+          {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} />}
+          {currentPlatform && <PlatformView platform={currentPlatform} onOpenUnified={goToUnifiedFiltered} />}
         </div>
       </div>
     </div>
@@ -453,7 +475,13 @@ function mapConversation(conv: OmniConversation, accountLabel?: string): InboxRo
   }
 }
 
-function UnifiedInbox() {
+function UnifiedInbox({ 
+  pendingPlatformFilter, 
+  onFilterConsumed 
+}: { 
+  pendingPlatformFilter?: PlatformId | null
+  onFilterConsumed?: () => void 
+}) {
   const [conversations, setConversations] = useState<InboxRow[]>([])
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
@@ -518,6 +546,23 @@ function UnifiedInbox() {
     loadData()
     return () => { cancelled = true }
   }, [])
+
+  // Apply pending filter from parent (e.g. coming from a Platform card)
+  useEffect(() => {
+    if (pendingPlatformFilter) {
+      const labelMap: Record<PlatformId, 'Telegram' | 'Discord' | 'TikTok'> = {
+        telegram: 'Telegram',
+        discord: 'Discord',
+        tiktok: 'TikTok',
+      }
+      const pLabel = labelMap[pendingPlatformFilter]
+      if (pLabel) {
+        setPlatformFilter(pLabel)
+      }
+      onFilterConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPlatformFilter])
 
   // Reusable reload from adapters (keeps data truth in adapters)
   async function reloadConversations() {
@@ -761,6 +806,33 @@ function UnifiedInbox() {
     await reloadConversations()
   }
 
+  async function simulateIncomingMessage() {
+    if (!selected) return
+    const adapters = getAllAdapters()
+    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
+    if (!adapter?.simulateIncoming) return
+
+    try {
+      await adapter.simulateIncoming(selected.id)
+      // Reload messages for the active convo
+      const omniMsgs = await adapter.getMessages(selected.id)
+      const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
+        id: m.id,
+        from: m.author?.name || 'Them',
+        text: m.body || '',
+        at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sentAt: m.sentAt,
+        outgoing: m.direction === 'out',
+      }))
+      setMessagesByConv(prev => ({ ...prev, [selected.id]: uiMsgs }))
+
+      // Refresh list (unread + preview)
+      await reloadConversations()
+    } catch (e) {
+      console.warn('simulateIncoming failed', e)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-[600px] overflow-hidden">
       {/* Conversation List */}
@@ -779,6 +851,28 @@ function UnifiedInbox() {
           />
 
           <div className="flex gap-1 mt-2 items-center flex-wrap">
+            <button
+              onClick={async () => {
+                const name = prompt('New contact name (demo)?', 'New Lead')
+                if (!name) return
+                const adapters = getAllAdapters()
+                // pick first matching current filter or any
+                let target = adapters[0]
+                if (platformFilter !== 'All') {
+                  target = adapters.find(a => PLATFORM_LABEL[a.platform] === platformFilter) || adapters[0]
+                }
+                if (target?.createConversation) {
+                  const conv = await target.createConversation(name, 'Hi! (started from OmniDash)')
+                  // refresh list + auto open the new one
+                  await reloadConversations()
+                  // select it
+                  setTimeout(() => selectConversation(conv.id), 30)
+                }
+              }}
+              className="mr-2 text-xs px-3 py-0.5 rounded-md bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)]"
+            >
+              + New
+            </button>
             {(['All', 'Telegram', 'Discord', 'TikTok'] as const).map(p => (
               <button
                 key={p}
@@ -1000,6 +1094,13 @@ function UnifiedInbox() {
                 >
                   {selected.archived ? 'Unarchive' : 'Archive'}
                 </button>
+                <button
+                  onClick={simulateIncomingMessage}
+                  className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg-tertiary)] flex items-center gap-1"
+                  title="Demo: inject an inbound message from the other side"
+                >
+                  Simulate reply
+                </button>
                 <div className="text-xs px-3 py-1 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
                   Unified • {selected.platform}
                 </div>
@@ -1077,12 +1178,35 @@ function UnifiedInbox() {
 }
 
 // ====================== PLATFORM VIEW ======================
-function PlatformView({ platform }: { platform: Platform }) {
-  const recent = [
-    "Just received a reply from the lead list",
-    "3 new conversations since this morning",
-    "You have 1 unread from yesterday"
-  ];
+function PlatformView({ 
+  platform, 
+  onOpenUnified 
+}: { 
+  platform: Platform; 
+  onOpenUnified?: (id: PlatformId) => void 
+}) {
+  const [platformConvs, setPlatformConvs] = useState<OmniConversation[]>([])
+  const [platformAccs, setPlatformAccs] = useState<OmniAccount[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const adapter = getAdapter(platform.id)
+      if (!adapter) return
+      try {
+        const accs = await adapter.listAccounts()
+        const convs = await adapter.listConversations({ archived: false })
+        if (!cancelled) {
+          setPlatformAccs(accs)
+          setPlatformConvs(convs.slice(0, 6))
+        }
+      } catch {}
+    }
+    load()
+    return () => { cancelled = true }
+  }, [platform.id])
+
+  const totalUnread = platformConvs.reduce((n, c) => n + c.unreadCount, 0)
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -1111,13 +1235,13 @@ function PlatformView({ platform }: { platform: Platform }) {
             
             <div className="flex flex-wrap gap-3">
               <button 
-                onClick={() => alert(`(Demo) This will open the ${platform.name} inbox view.`)} 
+                onClick={() => onOpenUnified?.(platform.id)}
                 className="flex items-center justify-center gap-2 px-6 py-3 rounded-[10px] bg-white text-[#1E1F22] text-sm font-semibold hover:bg-zinc-100 active:scale-[0.985] transition"
               >
                 <Inbox className="w-4 h-4" /> Open {platform.name} Inbox
               </button>
               <button 
-                onClick={() => alert(`(Demo) Launching the standalone ${platform.name} experience.`)} 
+                onClick={() => onOpenUnified?.(platform.id)}
                 className="flex items-center justify-center gap-2 px-5 py-3 rounded-[10px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] text-sm font-medium transition"
               >
                 <ExternalLink className="w-4 h-4" /> Open full app
@@ -1129,24 +1253,39 @@ function PlatformView({ platform }: { platform: Platform }) {
             <div className="text-[var(--text-muted)] text-xs mb-2 tracking-widest">CONNECTION</div>
             <div className="flex items-center gap-2 mb-5">
               <div className="status-dot bg-[var(--green)]" />
-              <span className="text-[var(--green)] font-medium text-sm">Healthy • 4 accounts</span>
+              <span className="text-[var(--green)] font-medium text-sm">Healthy • {platformAccs.length} accounts</span>
             </div>
 
             <div className="text-xs space-y-1 text-[var(--text-muted)]">
-              <div>Last message: moments ago</div>
-              <div>Sync: real-time</div>
+              <div>{platformConvs.length} active conversations</div>
+              <div>{totalUnread} unread</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px] p-6">
-          <div className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-3">Recent activity</div>
-          <ul className="text-sm space-y-2 text-[var(--text-normal)]">
-            {recent.map((item, i) => (
-              <li key={i} className="flex items-start gap-2">• {item}</li>
-            ))}
-          </ul>
-        </div>
+        {/* Live conversations for this platform */}
+        {platformConvs.length > 0 && (
+          <div className="mt-6 border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px] p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Recent conversations (live from adapter)</div>
+              <button onClick={() => onOpenUnified?.(platform.id)} className="text-xs text-[var(--brand)] hover:underline">View in unified</button>
+            </div>
+            <div className="space-y-1 text-sm">
+              {platformConvs.map(c => (
+                <div key={c.id} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-tertiary)]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="font-medium truncate">{c.peer.displayName}</div>
+                    <div className="text-[var(--text-muted)] text-xs truncate">@{c.peer.username || c.peer.id}</div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
+                    <span className="truncate max-w-[260px]">{c.lastMessagePreview}</span>
+                    {c.unreadCount > 0 && <span className="text-[var(--brand)] font-medium">{c.unreadCount} new</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 text-xs text-[var(--text-muted)]">
           {platform.name} runs as its own complete product. OmniDash is the single place where you access and (soon) unify everything.
