@@ -45,11 +45,12 @@ const PLATFORMS: Platform[] = [
 function App() {
   const [activeView, setActiveView] = useState<'home' | 'unified' | PlatformId>('home')
   const [pendingUnifiedPlatform, setPendingUnifiedPlatform] = useState<PlatformId | null>(null)
+  const [headerSearchTerm, setHeaderSearchTerm] = useState('')
 
   const currentPlatform = PLATFORMS.find(p => p.id === activeView) as Platform | undefined
 
   const goHome = () => setActiveView('home')
-  const goUnified = () => { setPendingUnifiedPlatform(null); setActiveView('unified') }
+  const goUnified = () => { setPendingUnifiedPlatform(null); setHeaderSearchTerm(''); setActiveView('unified') }
   const openPlatform = (id: PlatformId) => setActiveView(id)
 
   function goToUnifiedFiltered(id: PlatformId) {
@@ -142,18 +143,12 @@ function App() {
               <input 
                 type="text" 
                 placeholder="Search all conversations..." 
+                value={headerSearchTerm}
+                onChange={e => setHeaderSearchTerm(e.target.value)}
                 className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-1 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    // jump to unified with search term
-                    // we reuse the local query state inside by navigating; user can paste
+                  if (e.key === 'Enter' && headerSearchTerm.trim()) {
                     goUnified()
-                    // small UX: focus will be on the list search shortly
-                  }
-                }}
-                onFocus={() => {
-                  if (activeView !== 'unified') {
-                    // Hint: press enter or switch manually
                   }
                 }}
               />
@@ -172,7 +167,7 @@ function App() {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-auto bg-[var(--bg-primary)]">
           {activeView === 'home' && <HomeDashboard onOpenPlatform={openPlatform} onOpenUnified={goUnified} />}
-          {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} />}
+          {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} initialQuery={headerSearchTerm} />}
           {currentPlatform && <PlatformView platform={currentPlatform} onOpenUnified={goToUnifiedFiltered} />}
         </div>
       </div>
@@ -477,16 +472,18 @@ function mapConversation(conv: OmniConversation, accountLabel?: string): InboxRo
 
 function UnifiedInbox({ 
   pendingPlatformFilter, 
-  onFilterConsumed 
+  onFilterConsumed,
+  initialQuery 
 }: { 
   pendingPlatformFilter?: PlatformId | null
   onFilterConsumed?: () => void 
+  initialQuery?: string
 }) {
   const [conversations, setConversations] = useState<InboxRow[]>([])
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery || '')
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok'>('All')
   const [showArchived, setShowArchived] = useState(false)
   const [showInterestedOnly, setShowInterestedOnly] = useState(false)
@@ -546,6 +543,11 @@ function UnifiedInbox({
     loadData()
     return () => { cancelled = true }
   }, [])
+
+  // Seed search query coming from header
+  useEffect(() => {
+    if (initialQuery != null) setQuery(initialQuery)
+  }, [initialQuery])
 
   // Apply pending filter from parent (e.g. coming from a Platform card)
   useEffect(() => {
