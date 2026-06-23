@@ -3,6 +3,22 @@
 
 export type Platform = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat'
 
+export const PLATFORM_LABEL: Record<Platform, string> = {
+  telegram: 'Telegram',
+  discord: 'Discord',
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  snapchat: 'Snapchat',
+}
+
+export const PLATFORM_COLOR: Record<Platform, string> = {
+  telegram: '#229ED9',
+  discord: '#5865F2',
+  tiktok: '#FE2C55',
+  instagram: '#E1306C',
+  snapchat: '#FFFC00',
+}
+
 export interface OmniAccount {
   id: string
   platform: Platform

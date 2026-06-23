@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { 
   Home, Inbox, Send, Hash, Video, ExternalLink, Search, 
   Bell, ArrowRight 
 } from 'lucide-react'
 import './App.css'
+import { getAllAdapters } from './adapters'
+import type { OmniConversation, OmniMessage, OmniAccount } from './types/omni'
+import { PLATFORM_COLOR, PLATFORM_LABEL } from './types/omni'
 
 type PlatformId = 'telegram' | 'discord' | 'tiktok'
 
@@ -80,7 +83,6 @@ function App() {
               label="Unified Inbox" 
               active={activeView === 'unified'} 
               onClick={goUnified}
-              badge="Soon"
             />
           </div>
 
@@ -100,7 +102,7 @@ function App() {
         </div>
 
         <div className="p-3 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] px-4">
-          3 platforms • connected
+          3 platforms • live data
         </div>
       </div>
 
@@ -189,11 +191,79 @@ function NavItem({
   )
 }
 
-// ====================== HOME DASHBOARD ======================
+// ====================== HOME DASHBOARD (now live from adapters) ======================
+type PlatformSummary = {
+  accounts: number
+  conversations: number
+  unread: number
+  lastPreview: string
+}
+
 function HomeDashboard({ onOpenPlatform, onOpenUnified }: { 
   onOpenPlatform: (id: PlatformId) => void; 
   onOpenUnified: () => void;
 }) {
+  const [totalUnread, setTotalUnread] = useState(0)
+  const [activeThreads, setActiveThreads] = useState(0)
+  const [platformSummaries, setPlatformSummaries] = useState<Record<PlatformId, PlatformSummary>>({
+    telegram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+    discord: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+    tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+  })
+  const [totalAccounts, setTotalAccounts] = useState(0)
+  const [totalConvs, setTotalConvs] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadLive() {
+      const adpts = getAllAdapters()
+      const allConvs: OmniConversation[] = []
+      const allAccs: OmniAccount[] = []
+      const sums: Record<PlatformId, PlatformSummary> = {
+        telegram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+        discord: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+        tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+      }
+
+      for (const ad of adpts) {
+        const plat = ad.platform as PlatformId
+        if (!['telegram','discord','tiktok'].includes(plat)) continue
+
+        try {
+          const accs = await ad.listAccounts()
+          allAccs.push(...accs)
+          sums[plat].accounts = accs.length
+
+          const convs = await ad.listConversations({ archived: false })
+          allConvs.push(...convs)
+          sums[plat].conversations = convs.length
+          sums[plat].unread = convs.reduce((n, c) => n + c.unreadCount, 0)
+
+          // pick most recent preview
+          const recent = [...convs].sort((a, b) =>
+            (b.lastMessageAt || '').localeCompare(a.lastMessageAt || '')
+          )[0]
+          sums[plat].lastPreview = recent?.lastMessagePreview || 'No messages yet'
+        } catch {}
+      }
+
+      const unread = allConvs.reduce((n, c) => n + c.unreadCount, 0)
+      const active = allConvs.length
+
+      if (!cancelled) {
+        setTotalUnread(unread)
+        setActiveThreads(active)
+        setPlatformSummaries(sums)
+        setTotalAccounts(allAccs.length)
+        setTotalConvs(allConvs.length)
+      }
+    }
+
+    loadLive()
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       {/* Hero + stats */}
@@ -214,11 +284,11 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
             </div>
             <div>
               <div className="text-[var(--text-muted)] text-xs tracking-widest">UNREAD</div>
-              <div className="text-2xl font-semibold tabular-nums text-[var(--yellow)]">23</div>
+              <div className="text-2xl font-semibold tabular-nums text-[var(--yellow)]">{totalUnread}</div>
             </div>
             <div>
               <div className="text-[var(--text-muted)] text-xs tracking-widest">ACTIVE</div>
-              <div className="text-2xl font-semibold tabular-nums">12 <span className="text-base font-normal text-[var(--text-muted)]">threads</span></div>
+              <div className="text-2xl font-semibold tabular-nums">{activeThreads} <span className="text-base font-normal text-[var(--text-muted)]">threads</span></div>
             </div>
           </div>
         </div>
@@ -228,78 +298,88 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3 px-1">
           <div className="text-[11px] font-semibold tracking-[1.5px] text-[var(--text-muted)]">YOUR PLATFORMS</div>
-          <div className="text-[10px] text-[var(--text-muted)]">3 connected</div>
+          <div className="text-[10px] text-[var(--text-muted)]">{totalAccounts} accounts • {totalConvs} conversations</div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PLATFORMS.map((p) => (
-            <div 
-              key={p.id}
-              onClick={() => onOpenPlatform(p.id)}
-              className="omni-card group cursor-pointer border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px] overflow-hidden hover:border-[var(--brand)] flex flex-col shadow-[0_1px_2px_rgb(0,0,0,0.3)] hover:shadow-[0_10px_15px_-3px_rgb(0,0,0,0.3)] transition-all hover:-translate-y-px relative"
-            >
-              {/* Left accent bar */}
-              <div className="absolute left-0 top-0 bottom-0 w-[4px]" style={{ backgroundColor: p.color }} />
+          {PLATFORMS.map((p) => {
+            const s = platformSummaries[p.id] || { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' }
+            return (
+              <div 
+                key={p.id}
+                onClick={() => onOpenPlatform(p.id)}
+                className="omni-card group cursor-pointer border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px] overflow-hidden hover:border-[var(--brand)] flex flex-col shadow-[0_1px_2px_rgb(0,0,0,0.3)] hover:shadow-[0_10px_15px_-3px_rgb(0,0,0,0.3)] transition-all hover:-translate-y-px relative"
+              >
+                {/* Left accent bar */}
+                <div className="absolute left-0 top-0 bottom-0 w-[4px]" style={{ backgroundColor: p.color }} />
 
-              <div className="p-5 pl-7 flex flex-col flex-1">
-                {/* Header */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div 
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl shadow-sm flex-shrink-0 ring-1 ring-inset ring-white/10"
-                    style={{ backgroundColor: p.color }}
-                  >
-                    {p.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold text-[20px] tracking-[-0.4px] leading-none">{p.name}</div>
-                      <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'rgba(35,165,90,0.12)', color: 'var(--green)' }}>
-                        <div className="status-dot bg-[var(--green)]" />
-                        ONLINE
-                      </div>
+                <div className="p-5 pl-7 flex flex-col flex-1">
+                  {/* Header */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div 
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl shadow-sm flex-shrink-0 ring-1 ring-inset ring-white/10"
+                      style={{ backgroundColor: p.color }}
+                    >
+                      {p.icon}
                     </div>
-                    <div className="text-[12px] text-[var(--text-muted)] mt-0.5 leading-snug pr-1">{p.tagline}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-[20px] tracking-[-0.4px] leading-none">{p.name}</div>
+                        <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'rgba(35,165,90,0.12)', color: 'var(--green)' }}>
+                          <div className="status-dot bg-[var(--green)]" />
+                          ONLINE
+                        </div>
+                      </div>
+                      <div className="text-[12px] text-[var(--text-muted)] mt-0.5 leading-snug pr-1">{p.tagline}</div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Stats + account indicators */}
-                <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mb-1.5">
-                  <div>
-                    <span><span className="font-medium text-[var(--text-normal)]">4</span> accounts</span>
-                    <span className="text-[var(--border)]"> · </span>
-                    <span><span className="font-medium text-[var(--text-normal)]">29</span> conversations</span>
+                  {/* Stats + account indicators */}
+                  <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mb-1.5">
+                    <div>
+                      <span><span className="font-medium text-[var(--text-normal)]">{s.accounts}</span> accounts</span>
+                      <span className="text-[var(--border)]"> · </span>
+                      <span><span className="font-medium text-[var(--text-normal)]">{s.conversations}</span> conversations</span>
+                    </div>
+                    <div className="flex -space-x-[1px]">
+                      <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: p.color }}></div>
+                      <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: '#3b82f6' }}></div>
+                      <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: '#22c55e' }}></div>
+                    </div>
                   </div>
-                  <div className="flex -space-x-[1px]">
-                    <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: p.color }}></div>
-                    <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: '#3b82f6' }}></div>
-                    <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: '#22c55e' }}></div>
+
+                  {/* Last activity + unread badge */}
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] text-[var(--text-muted)]">Last message</div>
+                      <div className="text-[11px] text-[var(--text-normal)] truncate leading-tight">“{s.lastPreview}”</div>
+                    </div>
+                    {s.unread > 0 && (
+                      <div className="text-[10px] px-1.5 py-px rounded bg-[var(--yellow)]/20 text-[var(--yellow)] font-medium tabular-nums shrink-0">
+                        {s.unread} unread
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                {/* Last activity */}
-                <div className="mb-4">
-                  <div className="text-[10px] text-[var(--text-muted)]">Last message</div>
-                  <div className="text-[11px] text-[var(--text-normal)] truncate leading-tight">“the campaign is ready to go”</div>
-                </div>
-
-                {/* CTAs */}
-                <div className="mt-auto grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
-                    className="py-2 text-sm font-semibold rounded-[8px] bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition active:scale-[0.985]"
-                  >
-                    Open Inbox
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
-                    className="py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
-                  >
-                    Launch full app
-                  </button>
+                  {/* CTAs */}
+                  <div className="mt-auto grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                      className="py-2 text-sm font-semibold rounded-[8px] bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition active:scale-[0.985]"
+                    >
+                      Open Inbox
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                      className="py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
+                    >
+                      Launch full app
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -309,10 +389,10 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
         className="group border border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--brand)] rounded-[10px] p-6 flex flex-col md:flex-row gap-5 items-center cursor-pointer transition-all active:scale-[0.995]"
       >
         <div className="flex-1">
-          <div className="uppercase text-[10px] tracking-[1.5px] text-[var(--text-muted)] mb-1 font-medium">COMING NEXT</div>
+          <div className="uppercase text-[10px] tracking-[1.5px] text-[var(--text-muted)] mb-1 font-medium">LIVE</div>
           <div className="text-[21px] font-semibold tracking-tight mb-1 group-hover:text-[var(--brand)] transition-colors">Unified Inbox</div>
           <div className="text-[var(--text-muted)] text-[13px] max-w-md leading-snug">
-            Conversations from Telegram, Discord and TikTok in one list. Click below to try the live version.
+            Conversations from Telegram, Discord and TikTok in one list — powered by adapters. Click to use it now.
           </div>
         </div>
         <button 
@@ -326,19 +406,21 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
   )
 }
 
-// ====================== UNIFIED INBOX ======================
-// Note: using local view models for now; will align to Omni* types next
+// ====================== UNIFIED INBOX (Adapter-driven) ======================
 
-// UI view model (derived from Omni* types)
 type InboxRow = {
   id: string
   platform: 'Telegram' | 'Discord' | 'TikTok'
+  accountId: string
+  accountLabel: string
   name: string
   handle: string
   color: string
   lastMessage: string
   lastMessageAt: string
   unread: number
+  archived: boolean
+  lastMessageDirection?: 'in' | 'out' | null
 }
 
 type ChatMessage = {
@@ -346,90 +428,337 @@ type ChatMessage = {
   from: string
   text: string
   at: string
+  sentAt: string
   outgoing?: boolean
 }
 
-function UnifiedInbox() {
-  // Using shapes compatible with the shared Omni* types
-  const [conversations, setConversations] = useState<InboxRow[]>([
-    { id: 't1', platform: 'Telegram', name: 'Sophia Patel', handle: '@sophia_m', color: '#229ED9', lastMessage: 'Hey, any updates on the proposal we sent last week?', lastMessageAt: '2m', unread: 2 },
-    { id: 'd1', platform: 'Discord', name: 'Alex Rivera', handle: 'alexr', color: '#5865F2', lastMessage: 'The server is ready for the campaign. Just added the new leads.', lastMessageAt: '14m', unread: 1 },
-    { id: 'tt1', platform: 'TikTok', name: 'Mike Chen', handle: '@creativemike', color: '#FE2C55', lastMessage: 'Loved the last video idea 🔥 When are we posting?', lastMessageAt: '41m', unread: 0 },
-    { id: 't2', platform: 'Telegram', name: 'Lina Voss', handle: '@linavoss', color: '#229ED9', lastMessage: 'Can you resend the file? Thanks!', lastMessageAt: '1h', unread: 0 },
-  ])
+function mapConversation(conv: OmniConversation, accountLabel?: string): InboxRow {
+  const p = conv.platform as keyof typeof PLATFORM_LABEL
+  const displayPlatform = PLATFORM_LABEL[p] as InboxRow['platform']
+  return {
+    id: conv.id,
+    platform: displayPlatform,
+    accountId: conv.accountId,
+    accountLabel: accountLabel || 'Account',
+    name: conv.peer.displayName,
+    handle: conv.peer.username ? `@${conv.peer.username}` : conv.peer.id,
+    color: PLATFORM_COLOR[p],
+    lastMessage: conv.lastMessagePreview || '',
+    lastMessageAt: conv.lastMessageAt
+      ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '',
+    unread: conv.unreadCount,
+    archived: conv.archived,
+    lastMessageDirection: conv.lastMessageDirection,
+  }
+}
 
+function UnifiedInbox() {
+  const [conversations, setConversations] = useState<InboxRow[]>([])
+  const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok'>('All')
-
-  const [messagesByConv, setMessagesByConv] = useState<Record<string, ChatMessage[]>>({
-    t1: [
-      { id: 'm1', from: 'Sophia Patel', text: 'Hey, any updates on the proposal we sent last week?', at: '14:22' },
-      { id: 'm2', from: 'You', text: 'Working on it now, should have something by EOD.', at: '14:25', outgoing: true },
-    ],
-    d1: [
-      { id: 'm3', from: 'Alex Rivera', text: 'The server is ready for the campaign. Just added the new leads.', at: '13:58' },
-    ],
-    tt1: [
-      { id: 'm4', from: 'Mike Chen', text: 'Loved the last video idea 🔥 When are we posting?', at: '13:21' },
-    ],
-    t2: [
-      { id: 'm5', from: 'Lina Voss', text: 'Can you resend the file? Thanks!', at: '12:40' },
-    ],
-  })
-
+  const [showArchived, setShowArchived] = useState(false)
+  const [showInterestedOnly, setShowInterestedOnly] = useState(false)
+  const [showNeedsReply, setShowNeedsReply] = useState(false)
+  const [messagesByConv, setMessagesByConv] = useState<Record<string, ChatMessage[]>>({})
+  const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set())
   const [composer, setComposer] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLInputElement>(null)
+
+  // Bulk multi-select
+  const [isBulkMode, setIsBulkMode] = useState(false)
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
+
+  // Load accounts + conversations purely from adapters (no seeds)
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadData() {
+      const adapters = getAllAdapters()
+      const accList: Array<{ id: string; platform: string; label: string }> = []
+      const accMap: Record<string, { label: string; platform: string }> = {}
+      const allConvs: OmniConversation[] = []
+
+      for (const adapter of adapters) {
+        try {
+          const accs = await adapter.listAccounts()
+          for (const a of accs) {
+            const pLabel = PLATFORM_LABEL[adapter.platform]
+            const entry = { id: a.id, platform: pLabel, label: a.label || a.username }
+            accList.push(entry)
+            accMap[a.id] = { label: entry.label, platform: adapter.platform }
+          }
+
+          const convs = await adapter.listConversations()
+          allConvs.push(...convs)
+        } catch (err) {
+          console.warn(`Failed to load from ${adapter.platform}`, err)
+        }
+      }
+
+      if (!cancelled) {
+        setAccounts(accList)
+        setSelectedAccountIds(accList.map(a => a.id))
+
+        const rows = allConvs.map((c) => {
+          const acc = accMap[c.accountId]
+          return mapConversation(c, acc?.label)
+        })
+
+        setConversations(rows)
+        // No message seeding — full history loaded on select via adapter
+        setMessagesByConv({})
+      }
+    }
+
+    loadData()
+    return () => { cancelled = true }
+  }, [])
+
+  // Reusable reload from adapters (keeps data truth in adapters)
+  async function reloadConversations() {
+    const adapters = getAllAdapters()
+    const accList: Array<{ id: string; platform: string; label: string }> = []
+    const accMap: Record<string, { label: string; platform: string }> = {}
+    const allConvs: OmniConversation[] = []
+
+    for (const adapter of adapters) {
+      try {
+        const accs = await adapter.listAccounts()
+        for (const a of accs) {
+          const pLabel = PLATFORM_LABEL[adapter.platform]
+          accList.push({ id: a.id, platform: pLabel, label: a.label || a.username })
+          accMap[a.id] = { label: a.label || a.username, platform: adapter.platform }
+        }
+        const convs = await adapter.listConversations()
+        allConvs.push(...convs)
+      } catch {}
+    }
+
+    const rows = allConvs.map((c) => {
+      const acc = accMap[c.accountId]
+      return mapConversation(c, acc?.label)
+    })
+    // also keep accounts fresh
+    setAccounts(accList)
+    setConversations(rows)
+  }
+
+  // Bulk actions (operate through adapters)
+  async function bulkAction(type: 'archive' | 'unarchive' | 'markRead' | 'interested' | 'uninterested') {
+    if (bulkIds.size === 0) return
+
+    const adapters = getAllAdapters()
+    const ids = Array.from(bulkIds)
+
+    for (const id of ids) {
+      const row = conversations.find(c => c.id === id)
+      if (!row) continue
+      const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === row.platform)
+      if (!adapter) continue
+
+      try {
+        if (type === 'archive' || type === 'unarchive') {
+          await adapter.archiveConversation(id, type === 'archive')
+        } else if (type === 'markRead') {
+          await adapter.markRead(id)
+          // also clear unread in local row immediately
+          setConversations(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
+        } else if (type === 'interested' || type === 'uninterested') {
+          setInterestedIds(prev => {
+            const next = new Set(prev)
+            if (type === 'interested') next.add(id)
+            else next.delete(id)
+            return next
+          })
+        }
+      } catch (e) {
+        console.warn('Bulk action failed for', id, e)
+      }
+    }
+
+    // Refresh from adapters
+    await reloadConversations()
+
+    // Clear selection
+    setBulkIds(new Set())
+  }
+
+  function toggleBulk(id: string) {
+    setBulkIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function clearBulk() {
+    setBulkIds(new Set())
+  }
 
   const selected = conversations.find(c => c.id === selectedId) || null
 
   const filtered = conversations
     .filter(c => platformFilter === 'All' || c.platform === platformFilter)
-    .filter(c =>
-      !query ||
-      c.name.toLowerCase().includes(query.toLowerCase()) ||
-      c.handle.toLowerCase().includes(query.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(query.toLowerCase())
-    )
+    .filter(c => showArchived ? c.archived : !c.archived)
+    .filter(c => selectedAccountIds.length === 0 || selectedAccountIds.includes(c.accountId))
+    .filter(c => !showInterestedOnly || interestedIds.has(c.id))
+    .filter(c => !showNeedsReply || c.lastMessageDirection === 'in')
+    .filter(c => {
+      if (!query) return true
+      const q = query.toLowerCase()
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.handle.toLowerCase().includes(q) ||
+        c.lastMessage.toLowerCase().includes(q)
+      )
+    })
     .sort((a, b) => {
-      const ta = parseInt(a.lastMessageAt) || 999
-      const tb = parseInt(b.lastMessageAt) || 999
-      return ta - tb
+      const ta = Date.parse(a.lastMessageAt || '') || 0
+      const tb = Date.parse(b.lastMessageAt || '') || 0
+      return tb - ta
     })
 
   const currentMessages = selected ? (messagesByConv[selected.id] || []) : []
 
-  function selectConversation(id: string) {
+  function getDateLabel(iso: string): string {
+    const d = new Date(iso)
+    const now = new Date()
+    const today = now.toDateString()
+    if (d.toDateString() === today) return 'Today'
+    const yest = new Date(now)
+    yest.setDate(yest.getDate() - 1)
+    if (d.toDateString() === yest.toDateString()) return 'Yesterday'
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+
+  const groupedMessages = useMemo(() => {
+    if (!currentMessages.length) return [] as { label: string; msgs: ChatMessage[] }[]
+    const sorted = [...currentMessages].sort((a, b) => a.sentAt.localeCompare(b.sentAt))
+    const groups: { label: string; msgs: ChatMessage[] }[] = []
+    let curLabel = ''
+    let cur: ChatMessage[] = []
+    sorted.forEach(m => {
+      const label = getDateLabel(m.sentAt)
+      if (label !== curLabel) {
+        if (cur.length) groups.push({ label: curLabel, msgs: cur })
+        curLabel = label
+        cur = []
+      }
+      cur.push(m)
+    })
+    if (cur.length) groups.push({ label: curLabel, msgs: cur })
+    return groups
+  }, [currentMessages])
+
+  // Auto-scroll to bottom when messages for the selected conv change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [currentMessages])
+
+  // Focus composer when a conversation is selected
+  useEffect(() => {
+    if (selectedId && composerRef.current) {
+      // slight delay to let pane render
+      setTimeout(() => composerRef.current?.focus(), 60)
+    }
+  }, [selectedId])
+
+  async function selectConversation(id: string) {
     setSelectedId(id)
+
+    // Optimistic UI read
     setConversations(prev =>
       prev.map(c => (c.id === id ? { ...c, unread: 0 } : c))
     )
+
+    const conv = conversations.find(c => c.id === id)
+    if (!conv) return
+
+    const adapters = getAllAdapters()
+    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === conv.platform)
+
+    if (adapter) {
+      try {
+        await adapter.markRead(id)
+        const omniMsgs = await adapter.getMessages(id)
+        const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
+          id: m.id,
+          from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
+          text: m.body || '',
+          at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sentAt: m.sentAt,
+          outgoing: m.direction === 'out',
+        }))
+        setMessagesByConv(prev => ({
+          ...prev,
+          [id]: uiMsgs,
+        }))
+      } catch (e) {
+        console.warn('Failed to load messages or mark read via adapter', e)
+      }
+    }
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     if (!selected || !composer.trim()) return
 
-    const newMsg: ChatMessage = {
-      id: 'm' + Date.now(),
-      from: 'You',
-      text: composer.trim(),
-      at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      outgoing: true,
+    const text = composer.trim()
+    const adapters = getAllAdapters()
+    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
+
+    let sentMessage: ChatMessage
+
+    try {
+      const omniMsg: OmniMessage = adapter
+        ? await adapter.sendMessage(selected.id, text)
+        : { id: 'local-' + Date.now(), conversationId: selected.id, platform: 'telegram' as any, direction: 'out', body: text, sentAt: new Date().toISOString() }
+
+      sentMessage = {
+        id: omniMsg.id,
+        from: 'You',
+        text: omniMsg.body || '',
+        at: new Date(omniMsg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sentAt: omniMsg.sentAt,
+        outgoing: true,
+      }
+    } catch (e) {
+      console.error('Send failed via adapter', e)
+      sentMessage = {
+        id: 'msg-' + Date.now(),
+        from: 'You',
+        text,
+        at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sentAt: new Date().toISOString(),
+        outgoing: true,
+      }
     }
 
     setMessagesByConv(prev => ({
       ...prev,
-      [selected.id]: [...(prev[selected.id] || []), newMsg],
+      [selected.id]: [...(prev[selected.id] || []), sentMessage],
     }))
 
+    // Update local preview immediately
     setConversations(prev =>
       prev.map(c =>
         c.id === selected.id
-          ? { ...c, lastMessage: newMsg.text, lastMessageAt: 'now', unread: 0 }
+          ? { ...c, lastMessage: sentMessage.text, lastMessageAt: 'now', unread: 0 }
           : c
       )
     )
 
     setComposer('')
+
+    // Re-sync full list from adapters (adapters mutated their preview)
+    await reloadConversations()
   }
 
   return (
@@ -449,7 +778,7 @@ function UnifiedInbox() {
             className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
           />
 
-          <div className="flex gap-1 mt-2">
+          <div className="flex gap-1 mt-2 items-center flex-wrap">
             {(['All', 'Telegram', 'Discord', 'TikTok'] as const).map(p => (
               <button
                 key={p}
@@ -463,7 +792,84 @@ function UnifiedInbox() {
                 {p}
               </button>
             ))}
+
+            <div className="ml-2 flex rounded-md overflow-hidden border border-[var(--border)] text-xs">
+              <button
+                onClick={() => setShowArchived(false)}
+                className={`px-2 py-0.5 ${!showArchived ? 'bg-[var(--bg-message-hover)] font-medium' : 'hover:bg-[var(--bg-tertiary)]'}`}
+              >
+                Inbox
+              </button>
+              <button
+                onClick={() => setShowArchived(true)}
+                className={`px-2 py-0.5 ${showArchived ? 'bg-[var(--bg-message-hover)] font-medium' : 'hover:bg-[var(--bg-tertiary)]'}`}
+              >
+                Archived
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowInterestedOnly(!showInterestedOnly)}
+              className={`ml-2 text-xs px-2 py-0.5 rounded-md transition border ${showInterestedOnly ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
+            >
+              {showInterestedOnly ? '★ Interested' : '☆ Interested'}
+            </button>
+
+            <button
+              onClick={() => setShowNeedsReply(!showNeedsReply)}
+              className={`ml-1 text-xs px-2 py-0.5 rounded-md transition border ${showNeedsReply ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
+            >
+              {showNeedsReply ? 'Needs reply' : 'Needs reply'}
+            </button>
+
+            <button
+              onClick={() => {
+                const next = !isBulkMode
+                setIsBulkMode(next)
+                if (!next) {
+                  setBulkIds(new Set())
+                }
+              }}
+              className={`ml-2 text-xs px-2 py-0.5 rounded-md transition border ${isBulkMode ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
+            >
+              {isBulkMode ? 'Done selecting' : 'Select'}
+            </button>
+
+            {/* Account filter chips */}
+            {accounts.length > 0 && (
+              <div className="ml-3 flex gap-1 flex-wrap text-xs">
+                {accounts.map(acc => {
+                  const isSel = selectedAccountIds.includes(acc.id)
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => {
+                        setSelectedAccountIds(prev =>
+                          isSel ? prev.filter(x => x !== acc.id) : [...prev, acc.id]
+                        )
+                      }}
+                      className={`px-2 py-0.5 rounded border transition ${isSel ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
+                    >
+                      {acc.platform}: {acc.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
+
+          {/* Bulk action bar */}
+          {(isBulkMode || bulkIds.size > 0) && (
+            <div className="mt-2 flex items-center gap-2 text-xs bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-md px-2 py-1">
+              <span className="px-1 text-[var(--text-muted)]">{bulkIds.size} selected</span>
+              <button onClick={() => bulkAction('markRead')} className="px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] border border-[var(--border)]">Mark read</button>
+              <button onClick={() => bulkAction('archive')} className="px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] border border-[var(--border)]">Archive</button>
+              <button onClick={() => bulkAction('unarchive')} className="px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] border border-[var(--border)]">Unarchive</button>
+              <button onClick={() => bulkAction('interested')} className="px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] border border-[var(--border)]">★ Star</button>
+              <button onClick={() => bulkAction('uninterested')} className="px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] border border-[var(--border)]">☆ Unstar</button>
+              <button onClick={clearBulk} className="ml-auto px-2 py-0.5 rounded hover:bg-[var(--bg-message-hover)] text-[var(--text-muted)]">Clear</button>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -478,6 +884,24 @@ function UnifiedInbox() {
                 selectedId === conv.id ? 'bg-[var(--bg-message-hover)]' : ''
               }`}
             >
+              {/* Bulk checkbox */}
+              {isBulkMode && (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleBulk(conv.id)
+                  }}
+                  className="flex items-center"
+                >
+                  <input
+                    type="checkbox"
+                    checked={bulkIds.has(conv.id)}
+                    onChange={() => {}} // controlled by parent click
+                    className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
+                  />
+                </div>
+              )}
+
               <div
                 className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm font-bold ring-1 ring-inset ring-white/10"
                 style={{ background: conv.color }}
@@ -489,13 +913,29 @@ function UnifiedInbox() {
                   <span className={`font-medium text-sm truncate ${conv.unread > 0 ? 'text-[var(--text-normal)]' : ''}`}>
                     {conv.name}
                   </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setInterestedIds(prev => {
+                        const next = new Set(prev)
+                        if (next.has(conv.id)) next.delete(conv.id)
+                        else next.add(conv.id)
+                        return next
+                      })
+                    }}
+                    className={`text-xs ml-1 ${interestedIds.has(conv.id) ? 'text-yellow-400' : 'text-[var(--text-muted)] hover:text-yellow-400'} `}
+                  >
+                    {interestedIds.has(conv.id) ? '★' : '☆'}
+                  </button>
                   <span className="text-[10px] text-[var(--text-muted)] font-mono tabular-nums shrink-0">
                     {conv.lastMessageAt}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px]">
                   <span style={{ color: conv.color }} className="font-medium">{conv.platform}</span>
-                  <span className="text-[var(--text-muted)] truncate">{conv.handle}</span>
+                  <span className="text-[var(--text-muted)]">·</span>
+                  <span className="text-[var(--text-muted)]">{conv.accountLabel}</span>
+                  <span className="text-[var(--text-muted)] truncate">· {conv.handle}</span>
                 </div>
                 <div className={`text-[12px] truncate mt-0.5 ${conv.unread > 0 ? 'text-[var(--text-normal)]' : 'text-[var(--text-muted)]'}`}>
                   {conv.lastMessage}
@@ -531,40 +971,83 @@ function UnifiedInbox() {
                   {selected.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </div>
                 <div>
-                  <div className="font-medium">{selected.name}</div>
-                  <div className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
-                    {selected.handle} · <span style={{ color: selected.color }}>{selected.platform}</span>
+                  <div className="font-medium flex items-center gap-2">
+                    {selected.name}
+                    <span 
+                      className="text-[10px] px-1.5 py-px rounded font-medium"
+                      style={{ backgroundColor: `${selected.color}22`, color: selected.color }}
+                    >
+                      {selected.platform}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {selected.accountLabel} · {selected.handle}
                   </div>
                 </div>
               </div>
-              <div className="text-xs text-[var(--text-muted)]">Unified • {selected.platform}</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    const adapters = getAllAdapters()
+                    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
+                    if (adapter) {
+                      await adapter.archiveConversation(selected.id, !selected.archived)
+                      await reloadConversations()
+                      setSelectedId(null) // close the pane after archive action
+                    }
+                  }}
+                  className="text-xs px-2 py-1 rounded hover:bg-[var(--bg-tertiary)]"
+                >
+                  {selected.archived ? 'Unarchive' : 'Archive'}
+                </button>
+                <div className="text-xs px-3 py-1 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+                  Unified • {selected.platform}
+                </div>
+              </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {currentMessages.map((m, i) => (
-                <div key={i} className={`flex ${m.outgoing ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
-                      m.outgoing
-                        ? 'bg-[var(--brand)] text-white'
-                        : 'bg-[var(--bg-secondary)] text-[var(--text-normal)]'
-                    }`}
-                  >
-                    <div className="text-[10px] opacity-70 mb-0.5">{m.from} · {m.at}</div>
-                    {m.text}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {groupedMessages.length > 0 ? (
+                groupedMessages.map((group, gi) => (
+                  <div key={gi}>
+                    <div className="text-center my-2">
+                      <span className="text-[10px] px-2.5 py-px rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] tracking-wide">
+                        {group.label}
+                      </span>
+                    </div>
+                    {group.msgs.map((m, i) => (
+                      <div key={i} className={`flex ${m.outgoing ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
+                            m.outgoing
+                              ? 'bg-[var(--brand)] text-white'
+                              : 'bg-[var(--bg-secondary)] text-[var(--text-normal)]'
+                          }`}
+                        >
+                          <div className="text-[10px] opacity-70 mb-0.5 flex items-center gap-2">
+                            <span>{m.from}</span>
+                            <span className="opacity-50">· {m.at}</span>
+                          </div>
+                          {m.text}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))}
-              {currentMessages.length === 0 && (
-                <div className="text-[var(--text-muted)] text-sm">No messages yet. Say hello across platforms.</div>
+                ))
+              ) : (
+                currentMessages.length === 0 && (
+                  <div className="text-[var(--text-muted)] text-sm">No messages yet. Say hello across platforms.</div>
+                )
               )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Composer */}
             <div className="p-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]">
               <div className="flex gap-2">
                 <input
+                  ref={composerRef}
                   value={composer}
                   onChange={e => setComposer(e.target.value)}
                   onKeyDown={e => {
