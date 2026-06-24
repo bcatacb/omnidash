@@ -1,4 +1,8 @@
-# React + TypeScript + Vite (OmniDash - Unified Layer)
+# @omnidash/dash — OmniDash Frontend
+
+This is the unified dashboard. Clone the **root** of the omnidash repo to get the full package (dash + platforms + unified DB schema).
+
+See the root [README.md](../README.md) for the full picture.
 
 **Architecture note:**
 - Single unified database (see `../db/unified/schema.sql` and `DECISION.md`).

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { 
   Home, Inbox, Send, Hash, Video, ExternalLink, Search, 
-  Bell, ArrowRight 
+  Bell, ArrowRight, User, Camera 
 } from 'lucide-react'
 import './App.css'
 import { getAllTransformers, getTransformer } from './adapters'
 import type { OmniConversation, OmniMessage, OmniAccount } from './types/omni'
 import { PLATFORM_COLOR, PLATFORM_LABEL } from './types/omni'
 
-type PlatformId = 'telegram' | 'discord' | 'tiktok'
+type PlatformId = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat'
 
 interface Platform {
   id: PlatformId
@@ -16,6 +16,7 @@ interface Platform {
   tagline: string
   color: string
   icon: React.ReactNode
+  implemented: boolean
 }
 
 const PLATFORMS: Platform[] = [
@@ -24,21 +25,40 @@ const PLATFORMS: Platform[] = [
     name: 'Telegram', 
     tagline: 'Messages, groups, channels & campaigns', 
     color: '#229ED9',
-    icon: <Send className="w-5 h-5" />
+    icon: <Send className="w-5 h-5" />,
+    implemented: true,
   },
   { 
     id: 'discord', 
     name: 'Discord', 
     tagline: 'Unibox, outreach, warmup & leads', 
     color: '#5865F2',
-    icon: <Hash className="w-5 h-5" />
+    icon: <Hash className="w-5 h-5" />,
+    implemented: true,
   },
   { 
     id: 'tiktok', 
     name: 'TikTok', 
     tagline: 'DM inbox, pipeline & automation', 
     color: '#FE2C55',
-    icon: <Video className="w-5 h-5" />
+    icon: <Video className="w-5 h-5" />,
+    implemented: true,
+  },
+  { 
+    id: 'instagram', 
+    name: 'Instagram', 
+    tagline: 'DMs and stories (coming soon)', 
+    color: '#E1306C',
+    icon: <Camera className="w-5 h-5" />,
+    implemented: false,
+  },
+  { 
+    id: 'snapchat', 
+    name: 'Snapchat', 
+    tagline: 'Snaps and chats (coming soon)', 
+    color: '#FFFC00',
+    icon: <User className="w-5 h-5" />,
+    implemented: false,
   },
 ]
 
@@ -117,10 +137,10 @@ function App() {
         </div>
 
         <div className="p-3 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] px-4">
-          unified via transformers • {(['telegram','discord','tiktok'] as const).map(p => {
-            const t = getTransformer(p)
+          unified via transformers • {PLATFORMS.map(p => {
+            const t = getTransformer(p.id)
             const ch = t?.getCharacteristics?.()
-            return ch ? `${p[0]}:${ch.transport}` : p
+            return ch ? `${p.id[0]}:${ch.transport}` : p.id
           }).join(' ')}
         </div>
       </div>
@@ -246,6 +266,8 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
     telegram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
     discord: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
     tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+    instagram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+    snapchat: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
   })
   const [totalAccounts, setTotalAccounts] = useState(0)
   const [totalConvs, setTotalConvs] = useState(0)
@@ -262,6 +284,8 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
         telegram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
         discord: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
         tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+        instagram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+        snapchat: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
       }
 
       for (const ad of adpts) {
@@ -370,9 +394,9 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="font-semibold text-[20px] tracking-[-0.4px] leading-none">{p.name}</div>
-                        <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'rgba(35,165,90,0.12)', color: 'var(--green)' }}>
-                          <div className="status-dot bg-[var(--green)]" />
-                          ONLINE
+                        <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${p.implemented ? 'bg-[rgba(35,165,90,0.12)] text-[var(--green)]' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'}`}>
+                          <div className={`status-dot ${p.implemented ? 'bg-[var(--green)]' : 'bg-[var(--text-muted)]'}`} />
+                          {p.implemented ? 'ONLINE' : 'COMING SOON'}
                         </div>
                         {(() => {
                           const t = getTransformer(p.id)
@@ -418,18 +442,29 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
 
                   {/* CTAs */}
                   <div className="mt-auto grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
-                      className="py-2 text-sm font-semibold rounded-[8px] bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition active:scale-[0.985]"
-                    >
-                      Open Inbox
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
-                      className="py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
-                    >
-                      Launch full app
-                    </button>
+                    {p.implemented ? (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                          className="py-2 text-sm font-semibold rounded-[8px] bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white transition active:scale-[0.985]"
+                        >
+                          Open Inbox
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                          className="py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
+                        >
+                          Launch full app
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                        className="col-span-2 py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
+                      >
+                        Coming soon — socket ready
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -465,7 +500,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
 
 type InboxRow = {
   id: string
-  platform: 'Telegram' | 'Discord' | 'TikTok'
+  platform: 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat'
   accountId: string
   accountLabel: string
   name: string
@@ -523,7 +558,7 @@ function UnifiedInbox({
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState(initialQuery || '')
-  const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok'>('All')
+  const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat'>('All')
   const [showArchived, setShowArchived] = useState(false)
   const [showInterestedOnly, setShowInterestedOnly] = useState(false)
   const [showNeedsReply, setShowNeedsReply] = useState(false)
@@ -594,10 +629,12 @@ function UnifiedInbox({
   // Apply pending filter from parent (e.g. coming from a Platform card)
   useEffect(() => {
     if (pendingPlatformFilter) {
-      const labelMap: Record<PlatformId, 'Telegram' | 'Discord' | 'TikTok'> = {
+      const labelMap: Record<PlatformId, 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat'> = {
         telegram: 'Telegram',
         discord: 'Discord',
         tiktok: 'TikTok',
+        instagram: 'Instagram',
+        snapchat: 'Snapchat',
       }
       const pLabel = labelMap[pendingPlatformFilter]
       if (pLabel) {
@@ -875,7 +912,7 @@ function UnifiedInbox({
           />
 
           <div className="flex gap-1 mt-2 items-center flex-wrap">
-            {(['All', 'Telegram', 'Discord', 'TikTok'] as const).map(p => (
+            {(['All', 'Telegram', 'Discord', 'TikTok', 'Instagram', 'Snapchat'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => setPlatformFilter(p)}
@@ -1214,6 +1251,28 @@ function PlatformView({
   platform: Platform; 
   onOpenUnified?: (id: PlatformId) => void 
 }) {
+  if (!platform.implemented) {
+    return (
+      <div className="max-w-5xl mx-auto p-8">
+        <div className="text-4xl font-semibold tracking-[-1.5px]">{platform.name}</div>
+        <div className="text-[var(--text-muted)] mt-2 text-lg">{platform.tagline}</div>
+        <div className="mt-6 p-6 border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px]">
+          <div className="text-xl font-semibold">Socket ready</div>
+          <p className="mt-2 text-[var(--text-muted)]">
+            {platform.name} support is not implemented yet. A stub transformer is registered so the rest of the system can already reference it.
+            When the real adapter is plugged in, this view will come alive.
+          </p>
+          <button 
+            onClick={() => onOpenUnified?.(platform.id)}
+            className="mt-4 px-4 py-2 rounded bg-[var(--brand)] text-white text-sm"
+          >
+            View in Unified Inbox (will show nothing until implemented)
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const [platformConvs, setPlatformConvs] = useState<OmniConversation[]>([])
   const [platformAccs, setPlatformAccs] = useState<OmniAccount[]>([])
 
