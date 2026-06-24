@@ -4,6 +4,7 @@ import { discordAdapter } from './discord'
 import { tiktokAdapter } from './tiktok'
 import { instagramAdapter } from './instagram'
 import { snapchatAdapter } from './snapchat'
+import { facebookAdapter } from './facebook'
 
 /**
  * Platform transformers (the unified intra-API).
@@ -24,6 +25,7 @@ export const transformers: Record<string, PlatformTransformer> = {
   tiktok: tiktokAdapter,
   instagram: instagramAdapter,
   snapchat: snapchatAdapter,
+  facebook: facebookAdapter,
 }
 
 // Back-compat aliases (we're shifting from "adapter" to "transformer" terminology)

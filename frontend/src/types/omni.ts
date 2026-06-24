@@ -7,7 +7,7 @@
 // The cross-platform bridging logic is "transformers" (with platform adapters inside).
 // Telegram (API), Discord & TikTok (Playwright/hybrid) keep their execution models.
 
-export type Platform = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat'
+export type Platform = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat' | 'facebook'
 
 export const PLATFORM_LABEL: Record<Platform, string> = {
   telegram: 'Telegram',
@@ -15,6 +15,7 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
   tiktok: 'TikTok',
   instagram: 'Instagram',
   snapchat: 'Snapchat',
+  facebook: 'Facebook',
 }
 
 export const PLATFORM_COLOR: Record<Platform, string> = {
@@ -23,6 +24,7 @@ export const PLATFORM_COLOR: Record<Platform, string> = {
   tiktok: '#FE2C55',
   instagram: '#E1306C',
   snapchat: '#FFFC00',
+  facebook: '#1877F2',
 }
 
 export interface OmniAccount {

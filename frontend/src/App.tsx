@@ -8,7 +8,7 @@ import { getAllTransformers, getTransformer } from './adapters'
 import type { OmniConversation, OmniMessage, OmniAccount } from './types/omni'
 import { PLATFORM_COLOR, PLATFORM_LABEL } from './types/omni'
 
-type PlatformId = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat'
+type PlatformId = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat' | 'facebook'
 
 interface Platform {
   id: PlatformId
@@ -58,6 +58,14 @@ const PLATFORMS: Platform[] = [
     tagline: 'Snaps and chats (coming soon)', 
     color: '#FFFC00',
     icon: <User className="w-5 h-5" />,
+    implemented: false,
+  },
+  { 
+    id: 'facebook', 
+    name: 'Facebook', 
+    tagline: 'Messenger, Pages & ads (coming soon)', 
+    color: '#1877F2',
+    icon: <div className="w-5 h-5 flex items-center justify-center text-[14px] font-extrabold tracking-tighter">f</div>,
     implemented: false,
   },
 ]
@@ -268,6 +276,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
     tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
     instagram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
     snapchat: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+    facebook: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
   })
   const [totalAccounts, setTotalAccounts] = useState(0)
   const [totalConvs, setTotalConvs] = useState(0)
@@ -286,11 +295,11 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
         tiktok: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
         instagram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
         snapchat: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
+        facebook: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
       }
 
       for (const ad of adpts) {
         const plat = ad.platform as PlatformId
-        if (!['telegram','discord','tiktok'].includes(plat)) continue
 
         try {
           const accs = await ad.listAccounts()
@@ -370,7 +379,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
           <div className="text-[10px] text-[var(--text-muted)]">{totalAccounts} accounts • {totalConvs} conversations</div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {PLATFORMS.map((p) => {
             const s = platformSummaries[p.id] || { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' }
             return (
@@ -558,7 +567,7 @@ function UnifiedInbox({
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState(initialQuery || '')
-  const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat'>('All')
+  const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat' | 'Facebook'>('All')
   const [showArchived, setShowArchived] = useState(false)
   const [showInterestedOnly, setShowInterestedOnly] = useState(false)
   const [showNeedsReply, setShowNeedsReply] = useState(false)
@@ -629,12 +638,13 @@ function UnifiedInbox({
   // Apply pending filter from parent (e.g. coming from a Platform card)
   useEffect(() => {
     if (pendingPlatformFilter) {
-      const labelMap: Record<PlatformId, 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat'> = {
+      const labelMap: Record<PlatformId, 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat' | 'Facebook'> = {
         telegram: 'Telegram',
         discord: 'Discord',
         tiktok: 'TikTok',
         instagram: 'Instagram',
         snapchat: 'Snapchat',
+        facebook: 'Facebook',
       }
       const pLabel = labelMap[pendingPlatformFilter]
       if (pLabel) {
@@ -912,7 +922,7 @@ function UnifiedInbox({
           />
 
           <div className="flex gap-1 mt-2 items-center flex-wrap">
-            {(['All', 'Telegram', 'Discord', 'TikTok', 'Instagram', 'Snapchat'] as const).map(p => (
+            {(['All', 'Telegram', 'Discord', 'TikTok', 'Instagram', 'Snapchat', 'Facebook'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => setPlatformFilter(p)}
