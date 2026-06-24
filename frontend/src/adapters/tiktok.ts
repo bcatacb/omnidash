@@ -141,6 +141,24 @@ export const tiktokAdapter: PlatformTransformer = {
     } catch {}
   },
 
+  async startConversation(accountId, peer) {
+    return {
+      id: `tt-conv-${Date.now()}`,
+      platform: PLATFORM,
+      accountId,
+      peer: {
+        id: peer.id || peer.username || `tt-peer-${Date.now()}`,
+        displayName: peer.displayName,
+        username: peer.username || null,
+      },
+      lastMessagePreview: null,
+      lastMessageAt: null,
+      lastMessageDirection: null,
+      unreadCount: 0,
+      archived: false,
+    }
+  },
+
   getCharacteristics() {
     return {
       transport: 'browser' as const,

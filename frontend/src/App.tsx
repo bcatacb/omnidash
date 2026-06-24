@@ -75,6 +75,15 @@ function App() {
   const [pendingUnifiedPlatform, setPendingUnifiedPlatform] = useState<PlatformId | null>(null)
   const [headerSearchTerm, setHeaderSearchTerm] = useState('')
   const [sidebarUnread, setSidebarUnread] = useState(0)
+  const [platformUnreads, setPlatformUnreads] = useState<Record<string, number>>({})
+
+  // Unified compose state (progress toward unified send experience)
+  const [showCompose, setShowCompose] = useState(false)
+  const [composePlatform, setComposePlatform] = useState<PlatformId>('telegram')
+  const [composeAccountId, setComposeAccountId] = useState('')
+  const [composeAccounts, setComposeAccounts] = useState<OmniAccount[]>([])
+  const [composePeerName, setComposePeerName] = useState('')
+  const [composeBody, setComposeBody] = useState('')
 
   const currentPlatform = PLATFORMS.find(p => p.id === activeView) as Platform | undefined
 
@@ -82,21 +91,39 @@ function App() {
   const goUnified = () => { setPendingUnifiedPlatform(null); setHeaderSearchTerm(''); setActiveView('unified') }
   const openPlatform = (id: PlatformId) => setActiveView(id)
 
-  // Load sidebar unread count (lightweight, runs on mount)
+  // Load sidebar unread count + per-platform (lightweight, runs on mount)
   useEffect(() => {
     async function loadSidebarUnread() {
       try {
         const ts = getAllTransformers()
         let total = 0
+        const per: Record<string, number> = {}
         for (const t of ts) {
           const cs = await t.listConversations({ archived: false })
-          total += cs.reduce((n, c) => n + (c.unreadCount || 0), 0)
+          const u = cs.reduce((n, c) => n + (c.unreadCount || 0), 0)
+          per[t.platform] = u
+          total += u
         }
         setSidebarUnread(total)
+        setPlatformUnreads(per)
       } catch {}
     }
     loadSidebarUnread()
   }, [])
+
+  // Load accounts for compose when platform or modal changes
+  useEffect(() => {
+    if (!showCompose) return
+    const t = getTransformer(composePlatform)
+    if (t) {
+      t.listAccounts().then(acs => {
+        setComposeAccounts(acs as OmniAccount[])
+        if (acs.length > 0 && !composeAccountId) {
+          setComposeAccountId(acs[0].id)
+        }
+      })
+    }
+  }, [showCompose, composePlatform])
 
   function goToUnifiedFiltered(id: PlatformId) {
     setPendingUnifiedPlatform(id)
@@ -156,6 +183,7 @@ function App() {
                   label={platform.name + extra}
                   active={activeView === platform.id}
                   onClick={() => openPlatform(platform.id)}
+                  badge={platformUnreads[platform.id] > 0 ? platformUnreads[platform.id].toString() : undefined}
                 />
               )
             })}
@@ -229,6 +257,17 @@ function App() {
               )}
             </div>
 
+            <button
+              onClick={() => {
+                setShowCompose(true)
+                setComposePeerName('')
+                setComposeBody('')
+              }}
+              className="px-3 py-1 text-sm font-medium rounded-lg bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)] transition"
+            >
+              Compose
+            </button>
+
             <button className="p-2 hover:bg-[var(--bg-message-hover)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-normal)] transition-colors">
               <Bell className="w-4 h-4" />
             </button>
@@ -245,6 +284,98 @@ function App() {
           {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} initialQuery={headerSearchTerm} />}
           {currentPlatform && <PlatformView platform={currentPlatform} onOpenUnified={goToUnifiedFiltered} />}
         </div>
+
+        {/* Unified Compose Modal - step toward full cross-platform sending */}
+        {showCompose && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCompose(false)}>
+            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-semibold text-lg">New Message (Unified)</div>
+                <button onClick={() => setShowCompose(false)} className="text-[var(--text-muted)] hover:text-[var(--text-normal)]">×</button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">Platform</label>
+                  <select
+                    value={composePlatform}
+                    onChange={e => { setComposePlatform(e.target.value as PlatformId); setComposeAccountId('') }}
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  >
+                    {PLATFORMS.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">Account</label>
+                  <select
+                    value={composeAccountId}
+                    onChange={e => setComposeAccountId(e.target.value)}
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  >
+                    {composeAccounts.length === 0 && <option value="">Loading...</option>}
+                    {composeAccounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.label} ({a.username})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">To</label>
+                  <input
+                    value={composePeerName}
+                    onChange={e => setComposePeerName(e.target.value)}
+                    placeholder="Name or @handle"
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">Message</label>
+                  <textarea
+                    value={composeBody}
+                    onChange={e => setComposeBody(e.target.value)}
+                    placeholder="Write your message..."
+                    rows={4}
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button onClick={() => setShowCompose(false)} className="flex-1 py-2 rounded border border-[var(--border)] hover:bg-[var(--bg-tertiary)]">Cancel</button>
+                <button
+                  onClick={async () => {
+                    if (!composeAccountId || !composePeerName.trim() || !composeBody.trim()) return
+                    const t = getTransformer(composePlatform)
+                    if (!t) return
+                    try {
+                      const conv = await t.startConversation(composeAccountId, { displayName: composePeerName.trim() })
+                      await t.sendMessage(conv.id, composeBody.trim())
+                      setShowCompose(false)
+                      setComposePeerName('')
+                      setComposeBody('')
+                      // If currently viewing unified, a manual refresh or view switch will pick up the new convo
+                    } catch (e) {
+                      console.error('Unified send failed', e)
+                      alert('Failed to send (demo)')
+                    }
+                  }}
+                  disabled={!composeAccountId || !composePeerName.trim() || !composeBody.trim()}
+                  className="flex-1 py-2 rounded bg-[var(--brand)] text-white disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+
+              <div className="text-[10px] text-[var(--text-muted)] mt-3 text-center">
+                Sending via {PLATFORM_LABEL[composePlatform]} • unified composer
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

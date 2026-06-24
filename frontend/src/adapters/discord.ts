@@ -141,6 +141,25 @@ export const discordAdapter: PlatformTransformer = {
     } catch {}
   },
 
+  async startConversation(accountId, peer) {
+    // For real backend would call API to create; here demo
+    return {
+      id: `dc-conv-${Date.now()}`,
+      platform: PLATFORM,
+      accountId,
+      peer: {
+        id: peer.id || peer.username || `dc-peer-${Date.now()}`,
+        displayName: peer.displayName,
+        username: peer.username || null,
+      },
+      lastMessagePreview: null,
+      lastMessageAt: null,
+      lastMessageDirection: null,
+      unreadCount: 0,
+      archived: false,
+    }
+  },
+
   getCharacteristics() {
     return {
       transport: 'hybrid' as const,

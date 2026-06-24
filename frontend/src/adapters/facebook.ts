@@ -159,6 +159,27 @@ export const facebookAdapter: PlatformTransformer = {
     if (conv) conv.archived = archived
   },
 
+  async startConversation(accountId, peer) {
+    const newConv: OmniConversation = {
+      id: `fb-conv-${Date.now()}`,
+      platform: PLATFORM,
+      accountId,
+      peer: {
+        id: peer.id || peer.username || `fb-peer-${Date.now()}`,
+        displayName: peer.displayName,
+        username: peer.username || null,
+      },
+      lastMessagePreview: null,
+      lastMessageAt: null,
+      lastMessageDirection: null,
+      unreadCount: 0,
+      archived: false,
+    }
+    conversations.push(newConv)
+    messages[newConv.id] = []
+    return newConv
+  },
+
   getCharacteristics() {
     return {
       transport: 'api',

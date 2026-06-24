@@ -53,6 +53,12 @@ export interface PlatformTransformer {
   archiveConversation(convId: string, archived: boolean): Promise<void>
 
   /**
+   * Start a new conversation on the given account with a peer.
+   * This is key for unified sending / starting threads across platforms.
+   */
+  startConversation(accountId: string, peer: { displayName: string; username?: string; id?: string }): Promise<OmniConversation>
+
+  /**
    * Optional metadata for richer transformer / intraAPI usage.
    * Helps the UI treat platforms differently without hardcoding.
    */

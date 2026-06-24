@@ -198,6 +198,24 @@ export const telegramAdapter: PlatformTransformer = {
     console.warn('[telegramAdapter] archive not fully wired for real Telegram backend')
   },
 
+  async startConversation(accountId, peer) {
+    return {
+      id: `tg-conv-${Date.now()}`,
+      platform: PLATFORM,
+      accountId,
+      peer: {
+        id: peer.id || peer.username || `tg-peer-${Date.now()}`,
+        displayName: peer.displayName,
+        username: peer.username || null,
+      },
+      lastMessagePreview: null,
+      lastMessageAt: null,
+      lastMessageDirection: null,
+      unreadCount: 0,
+      archived: false,
+    }
+  },
+
   getCharacteristics() {
     return {
       transport: 'api' as const,
