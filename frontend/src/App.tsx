@@ -65,7 +65,7 @@ const PLATFORMS: Platform[] = [
     name: 'Facebook', 
     tagline: 'Messenger, Pages & ads (coming soon)', 
     color: '#1877F2',
-    icon: <div className="w-5 h-5 flex items-center justify-center text-[14px] font-extrabold tracking-tighter">f</div>,
+    icon: <div className="w-5 h-5 flex items-center justify-center text-[15px] font-black tracking-[-1px]">f</div>,
     implemented: false,
   },
 ]
@@ -74,12 +74,29 @@ function App() {
   const [activeView, setActiveView] = useState<'home' | 'unified' | PlatformId>('home')
   const [pendingUnifiedPlatform, setPendingUnifiedPlatform] = useState<PlatformId | null>(null)
   const [headerSearchTerm, setHeaderSearchTerm] = useState('')
+  const [sidebarUnread, setSidebarUnread] = useState(0)
 
   const currentPlatform = PLATFORMS.find(p => p.id === activeView) as Platform | undefined
 
   const goHome = () => setActiveView('home')
   const goUnified = () => { setPendingUnifiedPlatform(null); setHeaderSearchTerm(''); setActiveView('unified') }
   const openPlatform = (id: PlatformId) => setActiveView(id)
+
+  // Load sidebar unread count (lightweight, runs on mount)
+  useEffect(() => {
+    async function loadSidebarUnread() {
+      try {
+        const ts = getAllTransformers()
+        let total = 0
+        for (const t of ts) {
+          const cs = await t.listConversations({ archived: false })
+          total += cs.reduce((n, c) => n + (c.unreadCount || 0), 0)
+        }
+        setSidebarUnread(total)
+      } catch {}
+    }
+    loadSidebarUnread()
+  }, [])
 
   function goToUnifiedFiltered(id: PlatformId) {
     setPendingUnifiedPlatform(id)
@@ -121,6 +138,7 @@ function App() {
               label="Unified Inbox" 
               active={activeView === 'unified'} 
               onClick={goUnified}
+              badge={sidebarUnread > 0 ? sidebarUnread.toString() : undefined}
             />
           </div>
 
@@ -193,13 +211,22 @@ function App() {
                 placeholder="Search all conversations..." 
                 value={headerSearchTerm}
                 onChange={e => setHeaderSearchTerm(e.target.value)}
-                className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-1 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
+                className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg pl-9 pr-8 py-1 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && headerSearchTerm.trim()) {
                     goUnified()
                   }
                 }}
               />
+              {headerSearchTerm && (
+                <button
+                  onClick={() => setHeaderSearchTerm('')}
+                  className="absolute right-2 top-[5px] text-[var(--text-muted)] hover:text-[var(--text-normal)] text-lg leading-none"
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             <button className="p-2 hover:bg-[var(--bg-message-hover)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-normal)] transition-colors">
@@ -912,14 +939,10 @@ function UnifiedInbox({
           <div className="flex items-center gap-3 mb-3">
             <Inbox className="w-5 h-5 text-[var(--brand)]" />
             <div className="font-semibold text-lg tracking-tight">Unified Inbox</div>
+            {query && (
+              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-[var(--brand)] text-white">filtered by header</span>
+            )}
           </div>
-
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand)]"
-          />
 
           <div className="flex gap-1 mt-2 items-center flex-wrap">
             {(['All', 'Telegram', 'Discord', 'TikTok', 'Instagram', 'Snapchat', 'Facebook'] as const).map(p => (
