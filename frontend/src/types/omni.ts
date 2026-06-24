@@ -1,5 +1,11 @@
 // Shared OmniBox types — foundation for progressive unification
 // These will be used by the dashboard shell and the future unified inbox view.
+//
+// Backed by a single unified database (see ../../db/unified/schema.sql).
+// One operator user owns platform_accounts across Telegram/Discord/TikTok.
+//
+// The cross-platform bridging logic is "transformers" (with platform adapters inside).
+// Telegram (API), Discord & TikTok (Playwright/hybrid) keep their execution models.
 
 export type Platform = 'telegram' | 'discord' | 'tiktok' | 'instagram' | 'snapchat'
 
@@ -62,11 +68,5 @@ export interface OmniMessage {
   author?: { name: string; avatarUrl?: string | null }
 }
 
-export interface PlatformAdapter {
-  listAccounts(): Promise<OmniAccount[]>
-  listConversations(opts?: { accountIds?: string[]; archived?: boolean }): Promise<OmniConversation[]>
-  getMessages(convId: string, opts?: { limit?: number }): Promise<OmniMessage[]>
-  sendMessage(convId: string, body: string): Promise<OmniMessage>
-  markRead(convId: string): Promise<void>
-  archiveConversation(convId: string, archived: boolean): Promise<void>
-}
+// Note: The PlatformTransformer contract lives in ../adapters/platform-adapter.ts
+// (See agreed model: transformers can be rich intra-API implementations; adapters exist into them.)

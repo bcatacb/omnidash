@@ -4,7 +4,7 @@ import {
   Bell, ArrowRight 
 } from 'lucide-react'
 import './App.css'
-import { getAllAdapters, getAdapter } from './adapters'
+import { getAllTransformers, getTransformer } from './adapters'
 import type { OmniConversation, OmniMessage, OmniAccount } from './types/omni'
 import { PLATFORM_COLOR, PLATFORM_LABEL } from './types/omni'
 
@@ -99,20 +99,29 @@ function App() {
           {/* Platforms */}
           <div className="px-3 mb-1.5 text-[10px] font-medium tracking-[1px] text-[var(--text-muted)]">PLATFORMS</div>
           <div className="space-y-0.5">
-            {PLATFORMS.map((platform) => (
-              <NavItem 
-                key={platform.id}
-                icon={<div style={{ color: platform.color }}>{platform.icon}</div>}
-                label={platform.name}
-                active={activeView === platform.id}
-                onClick={() => openPlatform(platform.id)}
-              />
-            ))}
+            {PLATFORMS.map((platform) => {
+              const t = getTransformer(platform.id)
+              const ch = t?.getCharacteristics?.()
+              const extra = ch ? ` (${ch.transport})` : ''
+              return (
+                <NavItem 
+                  key={platform.id}
+                  icon={<div style={{ color: platform.color }}>{platform.icon}</div>}
+                  label={platform.name + extra}
+                  active={activeView === platform.id}
+                  onClick={() => openPlatform(platform.id)}
+                />
+              )
+            })}
           </div>
         </div>
 
         <div className="p-3 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] px-4">
-          3 platforms • live data
+          unified via transformers • {(['telegram','discord','tiktok'] as const).map(p => {
+            const t = getTransformer(p)
+            const ch = t?.getCharacteristics?.()
+            return ch ? `${p[0]}:${ch.transport}` : p
+          }).join(' ')}
         </div>
       </div>
 
@@ -126,14 +135,25 @@ function App() {
               {activeView === 'unified' && 'Unified Inbox'}
               {currentPlatform && currentPlatform.name}
             </div>
-            {currentPlatform && (
-              <div 
-                className="px-2 py-px text-[10px] rounded font-medium" 
-                style={{ backgroundColor: `${currentPlatform.color}22`, color: currentPlatform.color }}
-              >
-                CONNECTED
-              </div>
-            )}
+            {currentPlatform && (() => {
+              const t = getTransformer(currentPlatform.id)
+              const ch = t?.getCharacteristics?.()
+              return (
+                <div className="flex items-center gap-1">
+                  <div 
+                    className="px-2 py-px text-[10px] rounded font-medium" 
+                    style={{ backgroundColor: `${currentPlatform.color}22`, color: currentPlatform.color }}
+                  >
+                    CONNECTED
+                  </div>
+                  {ch && (
+                    <div className="px-1.5 py-px text-[9px] rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+                      {ch.transport} • ~{ch.typicalSendLatencyMs}ms
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           <div className="flex items-center gap-3">
@@ -208,7 +228,7 @@ function NavItem({
   )
 }
 
-// ====================== HOME DASHBOARD (now live from adapters) ======================
+// ====================== HOME DASHBOARD (now live from transformers / intra-API) ======================
 type PlatformSummary = {
   accounts: number
   conversations: number
@@ -229,12 +249,13 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
   })
   const [totalAccounts, setTotalAccounts] = useState(0)
   const [totalConvs, setTotalConvs] = useState(0)
+  const [usingDemo, setUsingDemo] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
     async function loadLive() {
-      const adpts = getAllAdapters()
+      const adpts = getAllTransformers()
       const allConvs: OmniConversation[] = []
       const allAccs: OmniAccount[] = []
       const sums: Record<PlatformId, PlatformSummary> = {
@@ -274,6 +295,8 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
         setPlatformSummaries(sums)
         setTotalAccounts(allAccs.length)
         setTotalConvs(allConvs.length)
+        const hasDemo = allAccs.some(a => a.id.includes('demo') || a.label.includes('demo'))
+        setUsingDemo(hasDemo)
       }
     }
 
@@ -285,13 +308,18 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
     <div className="p-8 max-w-7xl mx-auto">
       {/* Hero + stats */}
       <div className="mb-8">
+        {usingDemo && (
+          <div className="mb-2 px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded">
+            Using demo data — connect platform backends for live unified inbox
+          </div>
+        )}
         <div className="flex items-center gap-2 text-[var(--green)] text-xs font-semibold tracking-[1.5px] mb-1">
           <div className="w-1.5 h-1.5 bg-[var(--green)] rounded-full" /> ALL SYSTEMS OPERATIONAL
         </div>
         <div className="flex items-end justify-between gap-6">
           <div>
             <h1 className="text-[44px] font-semibold tracking-[-2.6px] leading-none">OmniDash</h1>
-            <p className="text-[var(--text-muted)] mt-1 text-[15px]">One place for every conversation across your apps.</p>
+            <p className="text-[var(--text-muted)] mt-1 text-[15px]">One place for every conversation across your apps. (unified intra-API over heterogeneous platforms)</p>
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm">
@@ -346,6 +374,11 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                           <div className="status-dot bg-[var(--green)]" />
                           ONLINE
                         </div>
+                        {(() => {
+                          const t = getTransformer(p.id)
+                          const ch = t?.getCharacteristics?.()
+                          return ch ? <span className="text-[9px] text-[var(--text-muted)]">{ch.transport}</span> : null
+                        })()}
                       </div>
                       <div className="text-[12px] text-[var(--text-muted)] mt-0.5 leading-snug pr-1">{p.tagline}</div>
                     </div>
@@ -357,6 +390,11 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                       <span><span className="font-medium text-[var(--text-normal)]">{s.accounts}</span> accounts</span>
                       <span className="text-[var(--border)]"> · </span>
                       <span><span className="font-medium text-[var(--text-normal)]">{s.conversations}</span> conversations</span>
+                      {(() => {
+                        const t = getTransformer(p.id)
+                        const ch = t?.getCharacteristics?.()
+                        return ch ? <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{ch.transport} ~{ch.typicalSendLatencyMs}ms</div> : null
+                      })()}
                     </div>
                     <div className="flex -space-x-[1px]">
                       <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: p.color }}></div>
@@ -409,7 +447,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
           <div className="uppercase text-[10px] tracking-[1.5px] text-[var(--text-muted)] mb-1 font-medium">LIVE</div>
           <div className="text-[21px] font-semibold tracking-tight mb-1 group-hover:text-[var(--brand)] transition-colors">Unified Inbox</div>
           <div className="text-[var(--text-muted)] text-[13px] max-w-md leading-snug">
-            Conversations from Telegram, Discord and TikTok in one list — powered by adapters. Click to use it now.
+            Conversations from Telegram, Discord and TikTok in one list — powered by platform transformers. Click to use it now.
           </div>
         </div>
         <button 
@@ -423,7 +461,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
   )
 }
 
-// ====================== UNIFIED INBOX (Adapter-driven) ======================
+// ====================== UNIFIED INBOX (Transformer / intra-API driven) ======================
 
 type InboxRow = {
   id: string
@@ -481,6 +519,7 @@ function UnifiedInbox({
 }) {
   const [conversations, setConversations] = useState<InboxRow[]>([])
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
+  const [usingDemoUnified, setUsingDemoUnified] = useState(false)
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState(initialQuery || '')
@@ -498,30 +537,30 @@ function UnifiedInbox({
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
 
-  // Load accounts + conversations purely from adapters (no seeds)
+  // Load accounts + conversations purely from platform transformers (the intra-API, no seeds)
   useEffect(() => {
     let cancelled = false
 
     async function loadData() {
-      const adapters = getAllAdapters()
+      const transformers = getAllTransformers()
       const accList: Array<{ id: string; platform: string; label: string }> = []
       const accMap: Record<string, { label: string; platform: string }> = {}
       const allConvs: OmniConversation[] = []
 
-      for (const adapter of adapters) {
+      for (const transformer of transformers) {
         try {
-          const accs = await adapter.listAccounts()
+          const accs = await transformer.listAccounts()
           for (const a of accs) {
-            const pLabel = PLATFORM_LABEL[adapter.platform]
+            const pLabel = PLATFORM_LABEL[transformer.platform]
             const entry = { id: a.id, platform: pLabel, label: a.label || a.username }
             accList.push(entry)
-            accMap[a.id] = { label: entry.label, platform: adapter.platform }
+            accMap[a.id] = { label: entry.label, platform: transformer.platform }
           }
 
-          const convs = await adapter.listConversations()
+          const convs = await transformer.listConversations()
           allConvs.push(...convs)
         } catch (err) {
-          console.warn(`Failed to load from ${adapter.platform}`, err)
+          console.warn(`Failed to load from ${transformer.platform}`, err)
         }
       }
 
@@ -535,8 +574,11 @@ function UnifiedInbox({
         })
 
         setConversations(rows)
-        // No message seeding — full history loaded on select via adapter
+        // No message seeding — full history loaded on select via transformer
         setMessagesByConv({})
+
+        const hasDemo = accList.some(a => a.id.includes('demo') || a.label.includes('demo'))
+        setUsingDemoUnified(hasDemo)
       }
     }
 
@@ -566,22 +608,22 @@ function UnifiedInbox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPlatformFilter])
 
-  // Reusable reload from adapters (keeps data truth in adapters)
+  // Reusable reload from transformers (keeps data truth in the source backends)
   async function reloadConversations() {
-    const adapters = getAllAdapters()
+    const transformers = getAllTransformers()
     const accList: Array<{ id: string; platform: string; label: string }> = []
     const accMap: Record<string, { label: string; platform: string }> = {}
     const allConvs: OmniConversation[] = []
 
-    for (const adapter of adapters) {
+    for (const transformer of transformers) {
       try {
-        const accs = await adapter.listAccounts()
+        const accs = await transformer.listAccounts()
         for (const a of accs) {
-          const pLabel = PLATFORM_LABEL[adapter.platform]
+          const pLabel = PLATFORM_LABEL[transformer.platform]
           accList.push({ id: a.id, platform: pLabel, label: a.label || a.username })
-          accMap[a.id] = { label: a.label || a.username, platform: adapter.platform }
+          accMap[a.id] = { label: a.label || a.username, platform: transformer.platform }
         }
-        const convs = await adapter.listConversations()
+        const convs = await transformer.listConversations()
         allConvs.push(...convs)
       } catch {}
     }
@@ -593,26 +635,28 @@ function UnifiedInbox({
     // also keep accounts fresh
     setAccounts(accList)
     setConversations(rows)
+    const hasDemo = accList.some(a => a.id.includes('demo') || a.label.includes('demo'))
+    setUsingDemoUnified(hasDemo)
   }
 
-  // Bulk actions (operate through adapters)
+  // Bulk actions (operate through the platform transformers)
   async function bulkAction(type: 'archive' | 'unarchive' | 'markRead' | 'interested' | 'uninterested') {
     if (bulkIds.size === 0) return
 
-    const adapters = getAllAdapters()
+    const transformers = getAllTransformers()
     const ids = Array.from(bulkIds)
 
     for (const id of ids) {
       const row = conversations.find(c => c.id === id)
       if (!row) continue
-      const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === row.platform)
-      if (!adapter) continue
+      const transformer = transformers.find(t => PLATFORM_LABEL[t.platform] === row.platform)
+      if (!transformer) continue
 
       try {
         if (type === 'archive' || type === 'unarchive') {
-          await adapter.archiveConversation(id, type === 'archive')
+          await transformer.archiveConversation(id, type === 'archive')
         } else if (type === 'markRead') {
-          await adapter.markRead(id)
+          await transformer.markRead(id)
           // also clear unread in local row immediately
           setConversations(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
         } else if (type === 'interested' || type === 'uninterested') {
@@ -628,7 +672,7 @@ function UnifiedInbox({
       }
     }
 
-    // Refresh from adapters
+    // Refresh from transformers
     await reloadConversations()
 
     // Clear selection
@@ -729,13 +773,13 @@ function UnifiedInbox({
     const conv = conversations.find(c => c.id === id)
     if (!conv) return
 
-    const adapters = getAllAdapters()
-    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === conv.platform)
+    const transformers = getAllTransformers()
+    const transformer = transformers.find(t => PLATFORM_LABEL[t.platform] === conv.platform)
 
-    if (adapter) {
+    if (transformer) {
       try {
-        await adapter.markRead(id)
-        const omniMsgs = await adapter.getMessages(id)
+        await transformer.markRead(id)
+        const omniMsgs = await transformer.getMessages(id)
         const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
           id: m.id,
           from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
@@ -749,7 +793,7 @@ function UnifiedInbox({
           [id]: uiMsgs,
         }))
       } catch (e) {
-        console.warn('Failed to load messages or mark read via adapter', e)
+        console.warn('Failed to load messages or mark read via transformer', e)
       }
     }
   }
@@ -758,14 +802,14 @@ function UnifiedInbox({
     if (!selected || !composer.trim()) return
 
     const text = composer.trim()
-    const adapters = getAllAdapters()
-    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
+    const transformers = getAllTransformers()
+    const transformer = transformers.find(t => PLATFORM_LABEL[t.platform] === selected.platform)
 
     let sentMessage: ChatMessage
 
     try {
-      const omniMsg: OmniMessage = adapter
-        ? await adapter.sendMessage(selected.id, text)
+      const omniMsg: OmniMessage = transformer
+        ? await transformer.sendMessage(selected.id, text)
         : { id: 'local-' + Date.now(), conversationId: selected.id, platform: 'telegram' as any, direction: 'out', body: text, sentAt: new Date().toISOString() }
 
       sentMessage = {
@@ -777,7 +821,7 @@ function UnifiedInbox({
         outgoing: true,
       }
     } catch (e) {
-      console.error('Send failed via adapter', e)
+      console.error('Send failed via transformer', e)
       sentMessage = {
         id: 'msg-' + Date.now(),
         from: 'You',
@@ -804,35 +848,8 @@ function UnifiedInbox({
 
     setComposer('')
 
-    // Re-sync full list from adapters (adapters mutated their preview)
+    // Re-sync full list from transformers (the source of truth lives in the backends)
     await reloadConversations()
-  }
-
-  async function simulateIncomingMessage() {
-    if (!selected) return
-    const adapters = getAllAdapters()
-    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
-    if (!adapter?.simulateIncoming) return
-
-    try {
-      await adapter.simulateIncoming(selected.id)
-      // Reload messages for the active convo
-      const omniMsgs = await adapter.getMessages(selected.id)
-      const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
-        id: m.id,
-        from: m.author?.name || 'Them',
-        text: m.body || '',
-        at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sentAt: m.sentAt,
-        outgoing: m.direction === 'out',
-      }))
-      setMessagesByConv(prev => ({ ...prev, [selected.id]: uiMsgs }))
-
-      // Refresh list (unread + preview)
-      await reloadConversations()
-    } catch (e) {
-      console.warn('simulateIncoming failed', e)
-    }
   }
 
   return (
@@ -840,6 +857,11 @@ function UnifiedInbox({
       {/* Conversation List */}
       <div className="w-96 border-r border-[var(--border)] bg-[var(--bg-secondary)] flex flex-col">
         <div className="p-4 border-b border-[var(--border)]">
+          {usingDemoUnified && (
+            <div className="mb-2 px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded">
+              Demo data — connect backends
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-3">
             <Inbox className="w-5 h-5 text-[var(--brand)]" />
             <div className="font-semibold text-lg tracking-tight">Unified Inbox</div>
@@ -853,28 +875,6 @@ function UnifiedInbox({
           />
 
           <div className="flex gap-1 mt-2 items-center flex-wrap">
-            <button
-              onClick={async () => {
-                const name = prompt('New contact name (demo)?', 'New Lead')
-                if (!name) return
-                const adapters = getAllAdapters()
-                // pick first matching current filter or any
-                let target = adapters[0]
-                if (platformFilter !== 'All') {
-                  target = adapters.find(a => PLATFORM_LABEL[a.platform] === platformFilter) || adapters[0]
-                }
-                if (target?.createConversation) {
-                  const conv = await target.createConversation(name, 'Hi! (started from OmniDash)')
-                  // refresh list + auto open the new one
-                  await reloadConversations()
-                  // select it
-                  setTimeout(() => selectConversation(conv.id), 30)
-                }
-              }}
-              className="mr-2 text-xs px-3 py-0.5 rounded-md bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)]"
-            >
-              + New
-            </button>
             {(['All', 'Telegram', 'Discord', 'TikTok'] as const).map(p => (
               <button
                 key={p}
@@ -936,6 +936,9 @@ function UnifiedInbox({
               <div className="ml-3 flex gap-1 flex-wrap text-xs">
                 {accounts.map(acc => {
                   const isSel = selectedAccountIds.includes(acc.id)
+                  const t = getTransformer(acc.platform.toLowerCase() as any)
+                  const ch = t?.getCharacteristics?.()
+                  const transportHint = ch ? ` (${ch.transport})` : ''
                   return (
                     <button
                       key={acc.id}
@@ -945,8 +948,9 @@ function UnifiedInbox({
                         )
                       }}
                       className={`px-2 py-0.5 rounded border transition ${isSel ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
+                      title={ch ? `${ch.transport} • ~${ch.typicalSendLatencyMs}ms` : ''}
                     >
-                      {acc.platform}: {acc.label}
+                      {acc.platform}: {acc.label}{transportHint}
                     </button>
                   )
                 })}
@@ -1029,6 +1033,15 @@ function UnifiedInbox({
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px]">
                   <span style={{ color: conv.color }} className="font-medium">{conv.platform}</span>
+                  {(() => {
+                    const t = getTransformer(conv.platform.toLowerCase() as any)
+                    const ch = t?.getCharacteristics?.()
+                    if (ch) {
+                      const col = ch.transport === 'api' ? '#22c55e' : ch.transport === 'hybrid' ? '#eab308' : '#ef4444'
+                      return <span style={{color: col}} className="text-[9px] font-mono">[{ch.transport}]</span>
+                    }
+                    return null
+                  })()}
                   <span className="text-[var(--text-muted)]">·</span>
                   <span className="text-[var(--text-muted)]">{conv.accountLabel}</span>
                   <span className="text-[var(--text-muted)] truncate">· {conv.handle}</span>
@@ -1075,6 +1088,11 @@ function UnifiedInbox({
                     >
                       {selected.platform}
                     </span>
+                    {(() => {
+                      const t = getTransformer(selected.platform.toLowerCase() as any)
+                      const ch = t?.getCharacteristics?.()
+                      return ch ? <span className="text-[9px] ml-1 text-[var(--text-muted)]">({ch.transport})</span> : null
+                    })()}
                   </div>
                   <div className="text-xs text-[var(--text-muted)]">
                     {selected.accountLabel} · {selected.handle}
@@ -1084,10 +1102,10 @@ function UnifiedInbox({
               <div className="flex items-center gap-2">
                 <button
                   onClick={async () => {
-                    const adapters = getAllAdapters()
-                    const adapter = adapters.find(a => PLATFORM_LABEL[a.platform] === selected.platform)
-                    if (adapter) {
-                      await adapter.archiveConversation(selected.id, !selected.archived)
+                    const transformers = getAllTransformers()
+                    const transformer = transformers.find(t => PLATFORM_LABEL[t.platform] === selected.platform)
+                    if (transformer) {
+                      await transformer.archiveConversation(selected.id, !selected.archived)
                       await reloadConversations()
                       setSelectedId(null) // close the pane after archive action
                     }
@@ -1095,13 +1113,6 @@ function UnifiedInbox({
                   className="text-xs px-2 py-1 rounded hover:bg-[var(--bg-tertiary)]"
                 >
                   {selected.archived ? 'Unarchive' : 'Archive'}
-                </button>
-                <button
-                  onClick={simulateIncomingMessage}
-                  className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-[var(--bg-tertiary)] flex items-center gap-1"
-                  title="Demo: inject an inbound message from the other side"
-                >
-                  Simulate reply
                 </button>
                 <div className="text-xs px-3 py-1 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
                   Unified • {selected.platform}
@@ -1159,18 +1170,34 @@ function UnifiedInbox({
                       sendMessage()
                     }
                   }}
-                  placeholder={`Message ${selected.name} on ${selected.platform}...`}
+                  placeholder={`Message ${selected.name} on ${selected.platform}... (${(() => {
+                    const t = getTransformer(selected.platform.toLowerCase() as any)
+                    const ch = t?.getCharacteristics?.()
+                    return ch ? ch.transport : 'unknown'
+                  })()})`}
                   className="flex-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--brand)]"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!composer.trim()}
                   className="px-4 rounded-lg bg-[var(--brand)] disabled:opacity-50 text-white text-sm font-medium"
+                  title={(() => {
+                    const t = getTransformer(selected.platform.toLowerCase() as any)
+                    const ch = t?.getCharacteristics?.()
+                    return ch && ch.transport !== 'api' ? 'May be slower due to ' + ch.transport + ' automation' : ''
+                  })()}
                 >
                   Send
                 </button>
               </div>
-              <div className="text-[10px] text-[var(--text-muted)] mt-1">Sending via {selected.platform}</div>
+              <div className="text-[10px] text-[var(--text-muted)] mt-1">
+                Sending via {selected.platform} 
+                {(() => {
+                  const t = getTransformer(selected.platform.toLowerCase() as any)
+                  const ch = t?.getCharacteristics?.()
+                  return ch ? ` (${ch.transport}, ~${ch.typicalSendLatencyMs}ms)` : ''
+                })()}
+              </div>
             </div>
           </>
         )}
@@ -1193,11 +1220,11 @@ function PlatformView({
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const adapter = getAdapter(platform.id)
-      if (!adapter) return
+      const transformer = getTransformer(platform.id)
+      if (!transformer) return
       try {
-        const accs = await adapter.listAccounts()
-        const convs = await adapter.listConversations({ archived: false })
+        const accs = await transformer.listAccounts()
+        const convs = await transformer.listConversations({ archived: false })
         if (!cancelled) {
           setPlatformAccs(accs)
           setPlatformConvs(convs.slice(0, 6))
@@ -1261,6 +1288,11 @@ function PlatformView({
             <div className="text-xs space-y-1 text-[var(--text-muted)]">
               <div>{platformConvs.length} active conversations</div>
               <div>{totalUnread} unread</div>
+              {(() => {
+                const t = getTransformer(platform.id)
+                const ch = t?.getCharacteristics?.()
+                return ch ? <div className="text-[10px] mt-1">via {ch.transport} • ~{ch.typicalSendLatencyMs || '?'}ms</div> : null
+              })()}
             </div>
           </div>
         </div>
@@ -1269,7 +1301,7 @@ function PlatformView({
         {platformConvs.length > 0 && (
           <div className="mt-6 border border-[var(--border)] bg-[var(--bg-secondary)] rounded-[10px] p-6">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Recent conversations (live from adapter)</div>
+              <div className="text-xs uppercase tracking-widest text-[var(--text-muted)]">Recent conversations (live from transformer)</div>
               <button onClick={() => onOpenUnified?.(platform.id)} className="text-xs text-[var(--brand)] hover:underline">View in unified</button>
             </div>
             <div className="space-y-1 text-sm">

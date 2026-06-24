@@ -5,7 +5,33 @@ import type {
   Platform,
 } from '../types/omni'
 
-export interface PlatformAdapter {
+/**
+ * PlatformTransformer
+ *
+ * The contract for the unification / intra-platform API layer.
+ *
+ * Backed by a single unified database (see ../db/unified/schema.sql).
+ *
+ * Critical points (agreed model):
+ * - A transformer implementation **could look like anything** as long as it fulfills this contract
+ *   (correct Omni* shapes + method behavior). It can be thin or a full internal subsystem.
+ * - Adapters still exist *into* the transformer. The per-platform pieces (*Adapter exports)
+ *   handle platform-specific execution (API vs Playwright) and feed normalized data into the unified DB.
+ * - This layer (the transformers) acts as the unified intra-API.
+ *   The UI (OmniDash) talks only to this; it does not talk directly to the three platform systems.
+ *
+ * - The platform backends keep their execution models.
+ * - They (or sync workers) write to the shared unified DB.
+ *
+ * We do not force the platforms to change how they operate.
+ */
+export interface PlatformCharacteristics {
+  transport: 'api' | 'hybrid' | 'browser'
+  supportsRealtime?: boolean
+  typicalSendLatencyMs?: number
+}
+
+export interface PlatformTransformer {
   readonly platform: Platform
 
   listAccounts(): Promise<OmniAccount[]>
@@ -26,9 +52,9 @@ export interface PlatformAdapter {
 
   archiveConversation(convId: string, archived: boolean): Promise<void>
 
-  // Demo helper — simulates an inbound message from the peer (for live feel)
-  simulateIncoming?(convId: string, body?: string): Promise<OmniMessage>
-
-  // Demo: create a brand new conversation on this platform/account
-  createConversation?(peerName: string, initialMessage?: string, accountId?: string): Promise<OmniConversation>
+  /**
+   * Optional metadata for richer transformer / intraAPI usage.
+   * Helps the UI treat platforms differently without hardcoding.
+   */
+  getCharacteristics?(): PlatformCharacteristics;
 }

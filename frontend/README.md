@@ -1,4 +1,15 @@
-# React + TypeScript + Vite
+# React + TypeScript + Vite (OmniDash - Unified Layer)
+
+**Architecture note:**
+- Single unified database (see `../db/unified/schema.sql` and `DECISION.md`).
+- One operator-level user account.
+- Platform-specific "adapters" live inside the "transformers".
+- The frontend only sees the normalized unified model.
+- Telegram (API), Discord & TikTok (Playwright/hybrid) keep their execution models.
+
+This is the new unified intra-API layer on top of the three platform apps.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 

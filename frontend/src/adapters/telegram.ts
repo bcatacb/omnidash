@@ -1,262 +1,208 @@
 import type { OmniAccount, OmniConversation, OmniMessage } from '../types/omni'
-import type { PlatformAdapter } from './platform-adapter'
+import type { PlatformTransformer } from './platform-adapter'
 
 const PLATFORM = 'telegram' as const
 
-// Fake accounts for Telegram
-const accounts: OmniAccount[] = [
-  {
-    id: 'tg-acc-1',
-    platform: PLATFORM,
-    label: 'Main Account',
-    username: '@mainuser',
-    avatarUrl: null,
-    status: 'connected',
-  },
-  {
-    id: 'tg-acc-2',
-    platform: PLATFORM,
-    label: 'Work Phone',
-    username: '@workphone',
-    avatarUrl: null,
-    status: 'connected',
-  },
-]
+// Telegram backend base (adjust via env for your setup)
+const TELEGRAM_BASE = (import.meta as any).env?.VITE_TELEGRAM_API || 'http://localhost:8000'
 
-let conversations: OmniConversation[] = [
-  {
-    id: 'tg-conv-1',
-    platform: PLATFORM,
-    accountId: 'tg-acc-1',
-    peer: { id: 'u1', displayName: 'Sophia Patel', username: 'sophia_m' },
-    lastMessagePreview: 'Hey, any updates on the proposal we sent last week?',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-    lastMessageDirection: 'in',
-    unreadCount: 2,
-    archived: false,
-  },
-  {
-    id: 'tg-conv-2',
-    platform: PLATFORM,
-    accountId: 'tg-acc-1',
-    peer: { id: 'u2', displayName: 'Lina Voss', username: 'linavoss' },
-    lastMessagePreview: 'Can you resend the file? Thanks!',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-    lastMessageDirection: 'in',
-    unreadCount: 0,
-    archived: false,
-  },
-  {
-    id: 'tg-conv-3',
-    platform: PLATFORM,
-    accountId: 'tg-acc-2',
-    peer: { id: 'u6', displayName: 'Marcus Lee', username: 'marclee' },
-    lastMessagePreview: 'The group is waiting for the final numbers.',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-    lastMessageDirection: 'in',
-    unreadCount: 5,
-    archived: false,
-  },
-  {
-    id: 'tg-conv-4',
-    platform: PLATFORM,
-    accountId: 'tg-acc-1',
-    peer: { id: 'u8', displayName: 'Priya Singh', username: 'priya' },
-    lastMessagePreview: 'All good on my end, thanks!',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    lastMessageDirection: 'out',
-    unreadCount: 0,
-    archived: true,
-  },
-]
+// Note: For full auth, the Telegram backend uses Bearer tokens.
+// For initial real wiring, you may need to either:
+// - Run without strict auth in dev, or
+// - Proxy / set a default token, or
+// - Extend the adapter to handle login first.
 
-const messages: Record<string, OmniMessage[]> = {
-  'tg-conv-1': [
-    {
-      id: 'tg-msg-0',
-      conversationId: 'tg-conv-1',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Hi, following up on the earlier discussion.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-      author: { name: 'Sophia Patel' },
+// Telegram transformer (API-driven platform).
+// 
+// This is the platform adapter that lives *inside* the Telegram transformer.
+// Its job:
+// - Talk to the Telegram backend (Telethon)
+// - Normalize data into the unified DB schema (see ../../db/unified/schema.sql)
+// - Fulfill the PlatformTransformer contract for the unified inbox
+//
+// The actual writes to the unified DB can happen here (in real mode) or via
+// the platform backend writing directly.
+
+// --- Real Telegram Transformer Implementation ---
+// This fulfills PlatformTransformer. It can grow into a full intraAPI client for Telegram.
+
+function mapConversation(item: any): OmniConversation {
+  // Backend gives composite id like "acc123::456", timestamp etc.
+  const chatId = item.chatId || item.id?.split('::')[1] || item.id
+  const accountId = item.accountId || item.id?.split('::')[0] || 'unknown'
+  const unifiedId = item.id?.includes('::') ? item.id : `telegram:${accountId}:${chatId}`
+
+  return {
+    id: unifiedId,
+    platform: PLATFORM,
+    accountId,
+    peer: {
+      id: chatId,
+      displayName: item.chatTitle || item.chatUsername || chatId,
+      username: item.chatUsername || undefined,
+      avatarUrl: null,
     },
-    {
-      id: 'tg-msg-1',
-      conversationId: 'tg-conv-1',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Hey, any updates on the proposal we sent last week?',
-      sentAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-      author: { name: 'Sophia Patel' },
-    },
-    {
-      id: 'tg-msg-2',
-      conversationId: 'tg-conv-1',
-      platform: PLATFORM,
-      direction: 'out',
-      body: 'Working on it now, should have something by EOD.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-      author: { name: 'You' },
-    },
-  ],
-  'tg-conv-2': [
-    {
-      id: 'tg-msg-3',
-      conversationId: 'tg-conv-2',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Can you resend the file? Thanks!',
-      sentAt: new Date(Date.now() - 1000 * 60 * 65).toISOString(),
-      author: { name: 'Lina Voss' },
-    },
-  ],
-  'tg-conv-3': [
-    {
-      id: 'tg-msg-3a',
-      conversationId: 'tg-conv-3',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'The group is waiting for the final numbers.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-      author: { name: 'Marcus Lee' },
-    },
-    {
-      id: 'tg-msg-3b',
-      conversationId: 'tg-conv-3',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Can you share the sheet link again?',
-      sentAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-      author: { name: 'Marcus Lee' },
-    },
-  ],
-  'tg-conv-4': [
-    {
-      id: 'tg-msg-4',
-      conversationId: 'tg-conv-4',
-      platform: PLATFORM,
-      direction: 'out',
-      body: 'All good on my end, thanks!',
-      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-      author: { name: 'You' },
-    },
-  ],
+    lastMessagePreview: item.lastMessage || item.draft || null,
+    lastMessageAt: item.timestamp || null,
+    lastMessageDirection: item.lastMessageOutgoing ? 'out' : (item.lastMessage ? 'in' : null),
+    unreadCount: item.unreadCount || 0,
+    archived: false, // Telegram backend doesn't surface archived the same way in convs list
+    meta: { isGroup: item.isGroup, isChannel: item.isChannel, draft: item.draft },
+  }
 }
 
-export const telegramAdapter: PlatformAdapter = {
+function mapMessage(item: any, convId: string): OmniMessage {
+  return {
+    id: String(item.id),
+    conversationId: convId,
+    platform: PLATFORM,
+    direction: item.outgoing ? 'out' : 'in',
+    body: item.text || null,
+    sentAt: item.timestamp || new Date().toISOString(),
+    author: item.senderName ? { name: item.senderName } : undefined,
+  }
+}
+
+export const telegramAdapter: PlatformTransformer = {
   platform: PLATFORM,
 
   async listAccounts() {
-    return [...accounts]
+    try {
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/accounts`)
+      if (!res.ok) throw new Error('backend not reachable')
+      const data = await res.json()
+      return (data || []).map((a: any): OmniAccount => ({
+        id: a.id,
+        platform: PLATFORM,
+        label: a.label || a.id,
+        username: a.username || '',
+        avatarUrl: null,
+        status: a.status || 'connected',
+      }))
+    } catch {
+      // Fallback for when backend is not running
+      return [{ id: 'tg-demo', platform: PLATFORM, label: 'Telegram (demo)', username: '@demo', avatarUrl: null, status: 'connected' as const }]
+    }
   },
 
   async listConversations(opts) {
-    let list = [...conversations]
-    if (opts?.accountIds?.length) {
-      list = list.filter(c => opts.accountIds!.includes(c.accountId))
-    }
-    if (opts?.archived !== undefined) {
-      list = list.filter(c => c.archived === opts.archived)
-    }
-    return list
-  },
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '200')
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/conversations?${params}`)
+      if (!res.ok) throw new Error('backend')
+      const data = await res.json()
+      let items: any[] = data.conversations || []
 
-  async getMessages(convId, opts) {
-    const msgs = messages[convId] ?? []
-    const limit = opts?.limit ?? 50
-    return [...msgs].slice(-limit)
-  },
-
-  async sendMessage(convId, body) {
-    const msg: OmniMessage = {
-      id: 'tg-msg-' + Date.now(),
-      conversationId: convId,
-      platform: PLATFORM,
-      direction: 'out',
-      body,
-      sentAt: new Date().toISOString(),
-      author: { name: 'You' },
-    }
-    if (!messages[convId]) messages[convId] = []
-    messages[convId].push(msg)
-
-    // update conversation preview
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) {
-      conv.lastMessagePreview = body
-      conv.lastMessageAt = msg.sentAt
-      conv.lastMessageDirection = 'out'
-    }
-    return msg
-  },
-
-  async markRead(convId) {
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) conv.unreadCount = 0
-  },
-
-  async archiveConversation(convId, archived) {
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) conv.archived = archived
-  },
-
-  async simulateIncoming(convId, body) {
-    const conv = conversations.find(c => c.id === convId)
-    const peerName = conv?.peer.displayName || 'Them'
-    const text = body || (['Any update on this?', 'Perfect, thanks!', 'Let\'s sync tomorrow morning.'][Math.floor(Math.random()*3)])
-
-    const msg: OmniMessage = {
-      id: 'tg-in-' + Date.now(),
-      conversationId: convId,
-      platform: PLATFORM,
-      direction: 'in',
-      body: text,
-      sentAt: new Date().toISOString(),
-      author: { name: peerName },
-    }
-    if (!messages[convId]) messages[convId] = []
-    messages[convId].push(msg)
-
-    if (conv) {
-      conv.lastMessagePreview = text
-      conv.lastMessageAt = msg.sentAt
-      conv.lastMessageDirection = 'in'
-      conv.unreadCount = (conv.unreadCount || 0) + 1
-    }
-    return msg
-  },
-
-  async createConversation(peerName, initialMessage, accountId) {
-    const accId = accountId || accounts[0]?.id || 'tg-acc-1'
-    const newId = 'tg-conv-' + Date.now()
-    const peer = { id: 'peer-' + Date.now(), displayName: peerName, username: peerName.toLowerCase().replace(/\s+/g, '') }
-    const conv: OmniConversation = {
-      id: newId,
-      platform: PLATFORM,
-      accountId: accId,
-      peer,
-      lastMessagePreview: initialMessage || 'New conversation started',
-      lastMessageAt: new Date().toISOString(),
-      lastMessageDirection: initialMessage ? 'out' : null,
-      unreadCount: 0,
-      archived: false,
-    }
-    conversations.unshift(conv)
-
-    if (initialMessage) {
-      const msg: OmniMessage = {
-        id: 'tg-new-' + Date.now(),
-        conversationId: newId,
-        platform: PLATFORM,
-        direction: 'out',
-        body: initialMessage,
-        sentAt: new Date().toISOString(),
-        author: { name: 'You' },
+      if (opts?.accountIds?.length) {
+        items = items.filter((c: any) => opts.accountIds!.includes(c.accountId))
       }
-      if (!messages[newId]) messages[newId] = []
-      messages[newId].push(msg)
+
+      let mapped = items.map(mapConversation)
+
+      if (opts?.archived !== undefined) {
+        mapped = mapped.filter(c => c.archived === opts.archived)
+      }
+
+      return mapped
+    } catch {
+      // Demo fallback data
+      return [
+        { id: 'tg-demo-1', platform: PLATFORM, accountId: 'tg-demo', peer: { id: 'u1', displayName: 'Demo Contact' }, lastMessagePreview: 'Hello from Telegram backend', lastMessageAt: new Date().toISOString(), lastMessageDirection: 'in' as const, unreadCount: 1, archived: false },
+      ]
     }
-    return conv
+  },
+
+  async getMessages(convId: string, opts) {
+    try {
+      // Parse account and chat from unified or backend id
+      let accountId = ''
+      let chatId = convId
+      if (convId.includes('::')) {
+        [accountId, chatId] = convId.split('::')
+      } else if (convId.includes(':')) {
+        const parts = convId.split(':')
+        accountId = parts[1] || ''
+        chatId = parts[2] || parts[1] || convId
+      }
+
+      const params = new URLSearchParams()
+      params.set('account_id', accountId || '')
+      params.set('chat_id', chatId)
+      params.set('limit', String(opts?.limit ?? 100))
+
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/thread?${params}`)
+      if (!res.ok) throw new Error('backend')
+      const data = await res.json()
+      const items: any[] = data.items || []
+      return items.map(item => mapMessage(item, convId))
+    } catch {
+      return [{ id: 'tg-d1', conversationId: convId, platform: PLATFORM, direction: 'in' as const, body: 'Demo message from Telegram', sentAt: new Date().toISOString() }]
+    }
+  },
+
+  async sendMessage(convId: string, body: string) {
+    let accountId = ''
+    let chatId = convId
+    if (convId.includes('::')) {
+      [accountId, chatId] = convId.split('::')
+    } else if (convId.includes(':')) {
+      const parts = convId.split(':')
+      accountId = parts[1] || ''
+      chatId = parts[2] || parts[1] || convId
+    }
+
+    try {
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId, chatId, text: body }),
+      })
+      if (!res.ok) throw new Error('backend')
+      const data = await res.json()
+      const item = data.item
+      return mapMessage(item, convId)
+    } catch {
+      return {
+        id: 'tg-sent-' + Date.now(),
+        conversationId: convId,
+        platform: PLATFORM,
+        direction: 'out' as const,
+        body,
+        sentAt: new Date().toISOString(),
+      }
+    }
+  },
+
+  async markRead(convId: string) {
+    // Best effort
+    try {
+      let accountId = ''
+      let chatId = convId
+      if (convId.includes('::')) [accountId, chatId] = convId.split('::')
+      else if (convId.includes(':')) {
+        const p = convId.split(':'); accountId = p[1]||''; chatId = p[2]||p[1]||convId
+      }
+      await fetch(`${TELEGRAM_BASE}/api/v1/messages/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId, chatId }),
+      })
+    } catch {}
+  },
+
+  async archiveConversation(_convId: string, _archived: boolean) {
+    // Telegram backend doesn't have direct archive in the same way for DMs.
+    // We can no-op or use a local meta flag via the meta in conv.
+    // For now, this is a no-op in real mode (or implement using folders if desired).
+    console.warn('[telegramAdapter] archive not fully wired for real Telegram backend')
+  },
+
+  getCharacteristics() {
+    return {
+      transport: 'api' as const,
+      supportsRealtime: true,
+      typicalSendLatencyMs: 250,
+    }
   },
 }

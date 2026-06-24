@@ -1,251 +1,151 @@
 import type { OmniAccount, OmniConversation, OmniMessage } from '../types/omni'
-import type { PlatformAdapter } from './platform-adapter'
+import type { PlatformTransformer } from './platform-adapter'
 
 const PLATFORM = 'discord' as const
 
-const accounts: OmniAccount[] = [
-  {
-    id: 'dc-acc-1',
-    platform: PLATFORM,
-    label: 'Main',
-    username: 'alexr#4821',
-    avatarUrl: null,
-    status: 'connected',
-  },
-  {
-    id: 'dc-acc-2',
-    platform: PLATFORM,
-    label: 'Alt',
-    username: 'workalt#0091',
-    avatarUrl: null,
-    status: 'connected',
-  },
-]
+const DISCORD_BASE = (import.meta as any).env?.VITE_DISCORD_API || 'http://localhost:4000'
 
-let conversations: OmniConversation[] = [
-  {
-    id: 'dc-conv-1',
-    platform: PLATFORM,
-    accountId: 'dc-acc-1',
-    peer: { id: 'u3', displayName: 'Alex Rivera', username: 'alexr' },
-    lastMessagePreview: 'The server is ready for the campaign. Just added the new leads.',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
-    lastMessageDirection: 'in',
-    unreadCount: 1,
-    archived: false,
-  },
-  {
-    id: 'dc-conv-2',
-    platform: PLATFORM,
-    accountId: 'dc-acc-1',
-    peer: { id: 'u5', displayName: 'Jordan Hale', username: 'jordanh' },
-    lastMessagePreview: 'Got it, will review the assets tonight.',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 47).toISOString(),
-    lastMessageDirection: 'out',
-    unreadCount: 0,
-    archived: false,
-  },
-  {
-    id: 'dc-conv-3',
-    platform: PLATFORM,
-    accountId: 'dc-acc-2',
-    peer: { id: 'u7', displayName: 'Sam Patel', username: 'samp' },
-    lastMessagePreview: 'Interested — can we hop on a quick call?',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-    lastMessageDirection: 'in',
-    unreadCount: 3,
-    archived: false,
-  },
-  {
-    id: 'dc-conv-4',
-    platform: PLATFORM,
-    accountId: 'dc-acc-2',
-    peer: { id: 'u9', displayName: 'Taylor Kim', username: 'tayk' },
-    lastMessagePreview: 'Thanks for the warm intro!',
-    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 9).toISOString(),
-    lastMessageDirection: 'out',
-    unreadCount: 0,
-    archived: true,
-  },
-]
+// Discord transformer (hybrid platform).
+// 
+// Platform adapter inside the transformer.
+// Normalizes to unified DB (see ../../db/unified/schema.sql).
+// Keeps Discord's execution model (bridge + Playwright for certain actions).
 
-const messages: Record<string, OmniMessage[]> = {
-  'dc-conv-1': [
-    {
-      id: 'dc-msg-1',
-      conversationId: 'dc-conv-1',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'The server is ready for the campaign. Just added the new leads.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-      author: { name: 'Alex Rivera' },
+function mapDiscordConversation(item: any): OmniConversation {
+  return {
+    id: item.id || `discord:${item.account_id}:${item.peer_discord_user_id || item.id}`,
+    platform: PLATFORM,
+    accountId: item.account_id || item.accountId || 'dc-acc-1',
+    peer: {
+      id: item.peer_discord_user_id || item.peerId || 'unknown',
+      displayName: item.peer_display_name || item.peerDisplayName || 'Discord User',
+      username: item.peer_username || item.peerUsername,
+      avatarUrl: item.peer_avatar_url || item.peerAvatar || null,
     },
-  ],
-  'dc-conv-2': [
-    {
-      id: 'dc-msg-2a',
-      conversationId: 'dc-conv-2',
-      platform: PLATFORM,
-      direction: 'out',
-      body: 'Got it, will review the assets tonight.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 47).toISOString(),
-      author: { name: 'You' },
-    },
-    {
-      id: 'dc-msg-2b',
-      conversationId: 'dc-conv-2',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Awesome, ping me when you have feedback.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-      author: { name: 'Jordan Hale' },
-    },
-  ],
-  'dc-conv-3': [
-    {
-      id: 'dc-msg-3a',
-      conversationId: 'dc-conv-3',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'Hey, saw your outreach. Interested — can we hop on a quick call?',
-      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-      author: { name: 'Sam Patel' },
-    },
-    {
-      id: 'dc-msg-3b',
-      conversationId: 'dc-conv-3',
-      platform: PLATFORM,
-      direction: 'in',
-      body: 'My calendar is pretty open tomorrow.',
-      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 3 + 1000 * 60 * 2).toISOString(),
-      author: { name: 'Sam Patel' },
-    },
-  ],
-  'dc-conv-4': [
-    {
-      id: 'dc-msg-4',
-      conversationId: 'dc-conv-4',
-      platform: PLATFORM,
-      direction: 'out',
-      body: 'Thanks for the warm intro!',
-      sentAt: new Date(Date.now() - 1000 * 60 * 60 * 9).toISOString(),
-      author: { name: 'You' },
-    },
-  ],
+    lastMessagePreview: item.last_message_preview || item.lastMessagePreview || null,
+    lastMessageAt: item.last_message_at ? new Date(item.last_message_at).toISOString() : item.lastMessageAt || null,
+    lastMessageDirection: item.last_message_direction,
+    unreadCount: item.unread_count || item.unreadCount || 0,
+    archived: !!item.archived,
+    meta: item,
+  }
 }
 
-export const discordAdapter: PlatformAdapter = {
+function mapDiscordMessage(item: any, convId: string): OmniMessage {
+  return {
+    id: item.id || 'dc-msg-' + Date.now(),
+    conversationId: convId,
+    platform: PLATFORM,
+    direction: item.direction || (item.outgoing ? 'out' : 'in'),
+    body: item.body || item.text || null,
+    sentAt: item.sent_at ? new Date(item.sent_at).toISOString() : item.sentAt || new Date().toISOString(),
+    author: item.author || (item.sender_name ? { name: item.sender_name } : undefined),
+  }
+}
+
+export const discordAdapter: PlatformTransformer = {
   platform: PLATFORM,
 
   async listAccounts() {
-    return [...accounts]
-  },
-
-  async listConversations(opts) {
-    let list = [...conversations]
-    if (opts?.accountIds?.length) {
-      list = list.filter(c => opts.accountIds!.includes(c.accountId))
-    }
-    if (opts?.archived !== undefined) {
-      list = list.filter(c => c.archived === opts.archived)
-    }
-    return list
-  },
-
-  async getMessages(convId, opts) {
-    const msgs = messages[convId] ?? []
-    const limit = opts?.limit ?? 50
-    return [...msgs].slice(-limit)
-  },
-
-  async sendMessage(convId, body) {
-    const msg: OmniMessage = {
-      id: 'dc-msg-' + Date.now(),
-      conversationId: convId,
-      platform: PLATFORM,
-      direction: 'out',
-      body,
-      sentAt: new Date().toISOString(),
-      author: { name: 'You' },
-    }
-    if (!messages[convId]) messages[convId] = []
-    messages[convId].push(msg)
-
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) {
-      conv.lastMessagePreview = body
-      conv.lastMessageAt = msg.sentAt
-      conv.lastMessageDirection = 'out'
-    }
-    return msg
-  },
-
-  async markRead(convId) {
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) conv.unreadCount = 0
-  },
-
-  async archiveConversation(convId, archived) {
-    const conv = conversations.find(c => c.id === convId)
-    if (conv) conv.archived = archived
-  },
-
-  async simulateIncoming(convId, body) {
-    const conv = conversations.find(c => c.id === convId)
-    const peerName = conv?.peer.displayName || 'Them'
-    const text = body || (['Hey, following up on that.', 'Sounds good — when works for you?', 'Just saw your note. 🔥'][Math.floor(Math.random()*3)])
-
-    const msg: OmniMessage = {
-      id: 'dc-in-' + Date.now(),
-      conversationId: convId,
-      platform: PLATFORM,
-      direction: 'in',
-      body: text,
-      sentAt: new Date().toISOString(),
-      author: { name: peerName },
-    }
-    if (!messages[convId]) messages[convId] = []
-    messages[convId].push(msg)
-
-    if (conv) {
-      conv.lastMessagePreview = text
-      conv.lastMessageAt = msg.sentAt
-      conv.lastMessageDirection = 'in'
-      conv.unreadCount = (conv.unreadCount || 0) + 1
-    }
-    return msg
-  },
-
-  async createConversation(peerName, initialMessage, accountId) {
-    const accId = accountId || accounts[0]?.id || 'dc-acc-1'
-    const newId = 'dc-conv-' + Date.now()
-    const peer = { id: 'peer-' + Date.now(), displayName: peerName, username: peerName.toLowerCase().replace(/\s+/g, '') }
-    const conv: OmniConversation = {
-      id: newId,
-      platform: PLATFORM,
-      accountId: accId,
-      peer,
-      lastMessagePreview: initialMessage || 'New conversation started',
-      lastMessageAt: new Date().toISOString(),
-      lastMessageDirection: initialMessage ? 'out' : null,
-      unreadCount: 0,
-      archived: false,
-    }
-    conversations.unshift(conv)
-
-    if (initialMessage) {
-      const msg: OmniMessage = {
-        id: 'dc-new-' + Date.now(),
-        conversationId: newId,
+    try {
+      const res = await fetch(`${DISCORD_BASE}/api/accounts`)
+      if (!res.ok) throw new Error('backend')
+      const data = await res.json()
+      return (data || []).map((a: any): OmniAccount => ({
+        id: a.id,
         platform: PLATFORM,
-        direction: 'out',
-        body: initialMessage,
-        sentAt: new Date().toISOString(),
-        author: { name: 'You' },
-      }
-      if (!messages[newId]) messages[newId] = []
-      messages[newId].push(msg)
+        label: a.label || a.username || 'Discord',
+        username: a.username || '',
+        avatarUrl: a.avatar || null,
+        status: a.status || 'connected',
+      }))
+    } catch {
+      return [
+        { id: 'dc-demo-1', platform: PLATFORM, label: 'Main (demo)', username: 'demo#0001', avatarUrl: null, status: 'connected' as const },
+        { id: 'dc-demo-2', platform: PLATFORM, label: 'Alt (demo)', username: 'alt#0002', avatarUrl: null, status: 'connected' as const },
+      ]
     }
-    return conv
+  },
+
+  async listConversations(_opts?: any) {
+    try {
+      const res = await fetch(`${DISCORD_BASE}/api/unibox/conversations`)
+      if (!res.ok) throw new Error('backend')
+      let items = await res.json()
+      items = (items || []).map(mapDiscordConversation)
+
+      if (_opts?.accountIds?.length) {
+        items = items.filter((c: any) => _opts.accountIds!.includes(c.accountId))
+      }
+      if (_opts?.archived !== undefined) {
+        items = items.filter((c: any) => c.archived === _opts.archived)
+      }
+      return items
+    } catch {
+      return [
+        { id: 'dc-demo-c1', platform: PLATFORM, accountId: 'dc-demo-1', peer: { id: 'u3', displayName: 'Demo Lead' }, lastMessagePreview: 'Demo from Discord', lastMessageAt: new Date().toISOString(), lastMessageDirection: 'in' as const, unreadCount: 1, archived: false },
+      ]
+    }
+  },
+
+  async getMessages(convId: string, _opts?: any) {
+    const id = convId.includes(':') ? convId.split(':').pop()! : convId
+    try {
+      const res = await fetch(`${DISCORD_BASE}/api/unibox/conversations/${encodeURIComponent(id)}/messages`)
+      if (!res.ok) throw new Error('backend')
+      const items = await res.json()
+      return (items || []).map((m: any) => mapDiscordMessage(m, convId))
+    } catch {
+      return [{ id: 'dc-d1', conversationId: convId, platform: PLATFORM, direction: 'in' as const, body: 'Demo Discord message', sentAt: new Date().toISOString() }]
+    }
+  },
+
+  async sendMessage(convId: string, body: string) {
+    const id = convId.includes(':') ? convId.split(':').pop()! : convId
+    try {
+      const res = await fetch(`${DISCORD_BASE}/api/unibox/conversations/${encodeURIComponent(id)}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      })
+      if (!res.ok) throw new Error('backend')
+      const data = await res.json()
+      return mapDiscordMessage(data, convId)
+    } catch {
+      return {
+        id: 'dc-sent-' + Date.now(),
+        conversationId: convId,
+        platform: PLATFORM,
+        direction: 'out' as const,
+        body,
+        sentAt: new Date().toISOString(),
+      }
+    }
+  },
+
+  async markRead(convId: string) {
+    try {
+      const id = convId.includes(':') ? convId.split(':').pop()! : convId
+      await fetch(`${DISCORD_BASE}/api/unibox/conversations/${encodeURIComponent(id)}/mark-read`, { method: 'POST' })
+    } catch {}
+  },
+
+  async archiveConversation(convId: string, archived: boolean) {
+    try {
+      const id = convId.includes(':') ? convId.split(':').pop()! : convId
+      await fetch(`${DISCORD_BASE}/api/unibox/conversations/${encodeURIComponent(id)}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived }),
+      })
+    } catch {}
+  },
+
+  getCharacteristics() {
+    return {
+      transport: 'hybrid' as const,
+      supportsRealtime: true,
+      typicalSendLatencyMs: 800,
+    }
   },
 }
