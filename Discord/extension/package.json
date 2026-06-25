@@ -1,0 +1,14 @@
+{
+  "name": "gg-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "bash build.sh",
+    "watch": "esbuild background.ts content-script.ts options.ts popup.ts --bundle --outdir=dist --target=chrome120 --format=esm --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}

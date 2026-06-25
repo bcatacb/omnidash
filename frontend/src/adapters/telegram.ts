@@ -79,9 +79,9 @@ export const telegramAdapter: PlatformTransformer = {
         avatarUrl: null,
         status: a.status || 'connected',
       }))
-    } catch {
-      // Fallback for when backend is not running
-      return [{ id: 'tg-demo', platform: PLATFORM, label: 'Telegram (demo)', username: '@demo', avatarUrl: null, status: 'connected' as const }]
+    } catch (e) {
+      console.error('Telegram listAccounts failed', e)
+      return []
     }
   },
 
@@ -105,11 +105,9 @@ export const telegramAdapter: PlatformTransformer = {
       }
 
       return mapped
-    } catch {
-      // Demo fallback data
-      return [
-        { id: 'tg-demo-1', platform: PLATFORM, accountId: 'tg-demo', peer: { id: 'u1', displayName: 'Demo Contact' }, lastMessagePreview: 'Hello from Telegram backend', lastMessageAt: new Date().toISOString(), lastMessageDirection: 'in' as const, unreadCount: 1, archived: false },
-      ]
+    } catch (e) {
+      console.error('Telegram listConversations failed', e)
+      return []
     }
   },
 
@@ -136,8 +134,9 @@ export const telegramAdapter: PlatformTransformer = {
       const data = await res.json()
       const items: any[] = data.items || []
       return items.map(item => mapMessage(item, convId))
-    } catch {
-      return [{ id: 'tg-d1', conversationId: convId, platform: PLATFORM, direction: 'in' as const, body: 'Demo message from Telegram', sentAt: new Date().toISOString() }]
+    } catch (e) {
+      console.error('Telegram getMessages failed', e)
+      return []
     }
   },
 
@@ -162,15 +161,9 @@ export const telegramAdapter: PlatformTransformer = {
       const data = await res.json()
       const item = data.item
       return mapMessage(item, convId)
-    } catch {
-      return {
-        id: 'tg-sent-' + Date.now(),
-        conversationId: convId,
-        platform: PLATFORM,
-        direction: 'out' as const,
-        body,
-        sentAt: new Date().toISOString(),
-      }
+    } catch (e) {
+      console.error('Telegram sendMessage failed', e)
+      throw e
     }
   },
 

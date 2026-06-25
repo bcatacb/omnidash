@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+
+# Stage 1: build the React frontend
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY app/package*.json ./
+# BuildKit cache: npm download cache so re-installs after package.json changes
+# don't hit the network.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
+COPY app/ ./
+# tailwind.config.js references ../theme — copy it alongside the app
+COPY theme/ /theme/
+# BuildKit cache: vite caches processed modules in node_modules/.vite.
+# Mounting it makes subsequent builds skip unchanged modules.
+RUN --mount=type=cache,target=/app/node_modules/.vite \
+    NODE_OPTIONS=--max-old-space-size=512 npx vite build
+
+# Stage 2: build the Chrome extension and zip it
+FROM node:20-alpine AS ext-build
+WORKDIR /ext
+COPY extension/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
+COPY extension/ ./
+RUN npx esbuild background.ts content-script.ts options.ts popup.ts page-bridge.ts \
+      --bundle --outdir=dist --target=chrome120 --format=esm \
+    && cp manifest.json dist/ \
+    && cp options.html dist/ \
+    && cp popup.html dist/ \
+    && apk add --no-cache zip \
+    && cd dist && zip -r /ext/gg-extension.zip .
+
+# Stage 3: nginx serves the built SPA + extension zip
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=ext-build /ext/gg-extension.zip /usr/share/nginx/html/gg-extension.zip
+COPY deploy/vps/nginx.conf /etc/nginx/nginx.conf

@@ -31,9 +31,5 @@ Thumbs.db
 # Misc
 *.tsbuildinfo
 
-# Existing platform apps are tracked in their own repositories for now.
-# We are building the new unified layer on top (single DB + transformers).
-# See db/unified/ for the converged schema.
-Discord/
-Telegram/
-TikTok/
+# Build artifact
+*.tar.gz

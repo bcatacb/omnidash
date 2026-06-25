@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniDash Telegram Backend (port 8000)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/omnibox/Telegram/backend
+EnvironmentFile=/root/.omnibox-envs/telegram.env
+ExecStart=/root/omnibox/Telegram/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

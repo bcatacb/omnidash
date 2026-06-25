@@ -1,0 +1,37 @@
+# === DB MIGRATION COMMANDS (run on VPS after code is in /root/omnibox) ===
+# Paste into your SSH session. Replace the REPLACE_ values with your real ones.
+
+# 1. Make sure postgres is reachable and create unified db if needed
+# psql -U postgres -h 127.0.0.1 -c "CREATE DATABASE omnibox OWNER postgres;" || true
+
+# 2. Install python postgres driver (if not in setup)
+apt-get install -y python3-psycopg2 || pip3 install "psycopg[binary]" pg8000
+
+# 3. Export the values (fill these!)
+export UNIFIED_DATABASE_URL="postgres://postgres:REPLACE_UNIFIED_PASS@127.0.0.1:5432/omnibox"
+
+# Discord source (the DB that has tenant_main tables)
+export DISCORD_DATABASE_URL="postgres://REPLACE_DISCORD_USER:REPLACE_DISCORD_PASS@127.0.0.1:5432/REPLACE_DISCORD_DB"
+
+# TikTok source
+export TIKTOK_DATABASE_URL="postgres://REPLACE_TIKTOK_USER:REPLACE_TIKTOK_PASS@127.0.0.1:5432/REPLACE_TIKTOK_DB"
+# If using Supabase style, the backfill also checks SUPABASE_DATABASE_URL as fallback
+
+# Telegram SQLite (path on this VPS)
+export TG_SQLITE_PATH="/root/.telegram-portal/telegram_portal.db"   # or wherever it lands after first TG run; adjust after starting TG once
+
+# 4. Go to the migrate script and run (applies schema + backfills historical)
+cd /root/omnibox
+python3 db/migrate/backfill.py --apply-schema --backfill-all
+
+# Or run one platform at a time:
+# python3 db/migrate/backfill.py --platform=discord
+# python3 db/migrate/backfill.py --platform=tiktok
+# python3 db/migrate/backfill.py --platform=telegram
+
+# 5. Verify
+# psql "$UNIFIED_DATABASE_URL" -c "SELECT platform, count(*) FROM platform_accounts GROUP BY platform;"
+# psql "$UNIFIED_DATABASE_URL" -c "SELECT platform, count(*) FROM conversations GROUP BY platform;"
+# psql "$UNIFIED_DATABASE_URL" -c "SELECT platform, count(*) FROM messages GROUP BY platform;"
+
+# After migration, new activity can also flow if we later point writes, but for now the backends keep their own + this gives historical in unified.

@@ -59,11 +59,9 @@ export const discordAdapter: PlatformTransformer = {
         avatarUrl: a.avatar || null,
         status: a.status || 'connected',
       }))
-    } catch {
-      return [
-        { id: 'dc-demo-1', platform: PLATFORM, label: 'Main (demo)', username: 'demo#0001', avatarUrl: null, status: 'connected' as const },
-        { id: 'dc-demo-2', platform: PLATFORM, label: 'Alt (demo)', username: 'alt#0002', avatarUrl: null, status: 'connected' as const },
-      ]
+    } catch (e) {
+      console.error('Discord listAccounts failed', e)
+      return []
     }
   },
 
@@ -81,10 +79,9 @@ export const discordAdapter: PlatformTransformer = {
         items = items.filter((c: any) => c.archived === _opts.archived)
       }
       return items
-    } catch {
-      return [
-        { id: 'dc-demo-c1', platform: PLATFORM, accountId: 'dc-demo-1', peer: { id: 'u3', displayName: 'Demo Lead' }, lastMessagePreview: 'Demo from Discord', lastMessageAt: new Date().toISOString(), lastMessageDirection: 'in' as const, unreadCount: 1, archived: false },
-      ]
+    } catch (e) {
+      console.error('Discord listConversations failed', e)
+      return []
     }
   },
 
@@ -95,8 +92,9 @@ export const discordAdapter: PlatformTransformer = {
       if (!res.ok) throw new Error('backend')
       const items = await res.json()
       return (items || []).map((m: any) => mapDiscordMessage(m, convId))
-    } catch {
-      return [{ id: 'dc-d1', conversationId: convId, platform: PLATFORM, direction: 'in' as const, body: 'Demo Discord message', sentAt: new Date().toISOString() }]
+    } catch (e) {
+      console.error('Discord getMessages failed', e)
+      return []
     }
   },
 
@@ -111,15 +109,9 @@ export const discordAdapter: PlatformTransformer = {
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
       return mapDiscordMessage(data, convId)
-    } catch {
-      return {
-        id: 'dc-sent-' + Date.now(),
-        conversationId: convId,
-        platform: PLATFORM,
-        direction: 'out' as const,
-        body,
-        sentAt: new Date().toISOString(),
-      }
+    } catch (e) {
+      console.error('Discord sendMessage failed', e)
+      throw e
     }
   },
 
@@ -142,7 +134,8 @@ export const discordAdapter: PlatformTransformer = {
   },
 
   async startConversation(accountId, peer) {
-    // For real backend would call API to create; here demo
+    // For real backend, call create conv endpoint if available.
+    // Currently returns structure; send will go to backend.
     return {
       id: `dc-conv-${Date.now()}`,
       platform: PLATFORM,

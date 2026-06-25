@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Discord multi-account unibox SaaS (skeleton)." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <script>
+      (function () {
+        var storageKey = 'tgsaas.theme'
+        var preference = 'system'
+
+        try {
+          var storedPreference = window.localStorage.getItem(storageKey)
+          if (storedPreference === 'light' || storedPreference === 'dark' || storedPreference === 'system') {
+            preference = storedPreference
+          }
+        } catch (_error) {
+          preference = 'system'
+        }
+
+        var systemPrefersDark =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches
+        var theme = preference === 'system'
+          ? (systemPrefersDark ? 'dark' : 'light')
+          : preference
+
+        document.documentElement.classList.toggle('dark', theme === 'dark')
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
+    <title>Discord Unibox (skeleton)</title>
+  </head>
+  <body class="font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

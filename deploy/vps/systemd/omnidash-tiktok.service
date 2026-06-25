@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniDash TikTok Backend (port 3000)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/omnibox/TikTok/server
+EnvironmentFile=/root/.omnibox-envs/tiktok.env
+ExecStart=/usr/bin/env PORT=3000 /usr/bin/npx tsx index.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs -0 zip -q /root/tg-messaging-saas.zip)",
+      "Read(//root/**)",
+      "Bash(unzip -l /root/tg-messaging-saas.zip)",
+      "Bash(apt list *)",
+      "Bash(awk 'NR>=847 && NR<=1030' /root/tg-messaging-saas/server/index.ts)",
+      "Bash(git log *)",
+      "Bash(curl -fsS -m 5 -o /dev/null -w \"HTTP %{http_code}  TLS_OK=%{ssl_verify_result}\\\\n\" https://staging.droply.click/)",
+      "Bash(docker build *)",
+      "Bash(echo \"backend exit=$?\")",
+      "Bash(echo \"frontend exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(docker compose *)",
+      "Bash(curl -fsS -m 10 -o /dev/null -w \"HTTP %{http_code}  size=%{size_download} bytes\\\\n\" https://staging.droply.click/)",
+      "Bash(curl -fsS -m 10 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://staging.droply.click/api/docs)",
+      "Bash(docker exec *)",
+      "Bash(curl -fsS https://staging.droply.click/)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"tsc=$?\")",
+      "Bash(npx vitest *)",
+      "Bash(echo \"vitest=$?\")",
+      "Bash(git config *)"
+    ]
+  }
+}

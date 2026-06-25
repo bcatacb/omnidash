@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "captured_at": "2026-05-18T00:00:00Z",
+    "captured_by": "Agent D (deploy)",
+    "tool": "mcp__cloudflare__zones_list",
+    "note": "The MCP tool was invoked successfully but the response body was serialized as '[object Object]' in this environment, preventing capture of the zone list payload. This is a harness-level display issue, not an auth failure — re-run via wrangler CLI or the CF dashboard to confirm. Per task brief, the user stated linktree.bond is NOT yet on the Cloudflare account; the runbook proceeds with the 'add zone' path. If you DO see the zone listed in dashboard, skip section 2 of the runbook and jump to section 3 (DNS records only)."
+  },
+  "expected_shape_when_working": {
+    "result": [
+      {
+        "id": "<32-char-hex>",
+        "name": "<zone-name>",
+        "status": "active|pending|moved",
+        "account": { "id": "<account-id>", "name": "<account-name>" },
+        "name_servers": ["xxx.ns.cloudflare.com", "yyy.ns.cloudflare.com"]
+      }
+    ],
+    "success": true,
+    "errors": [],
+    "messages": []
+  },
+  "fallback_capture_commands": [
+    "wrangler whoami",
+    "curl -sS https://api.cloudflare.com/client/v4/zones -H \"Authorization: Bearer $CF_API_TOKEN\" | jq '.result[] | {id, name, status}'"
+  ]
+}

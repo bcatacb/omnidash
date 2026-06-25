@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px/1.4 -apple-system, system-ui, sans-serif; width: 240px; padding: 12px; color: #ddd; background: #1f1f23; }
+    .ok { color: #4ade80; }
+    .err { color: #ef4444; }
+    .muted { color: #888; }
+    a { color: #5865F2; }
+    button { margin-top: 6px; width: 100%; padding: 6px; background: #2d2d33; color: #ddd; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    button:hover { background: #3a3a42; }
+    button.danger { border-color: #ef4444; color: #ef4444; }
+    button.danger:hover { background: #2d1a1a; }
+  </style>
+</head>
+<body>
+  <strong>GG Account Switcher</strong>
+  <p id="status" class="muted">Checking…</p>
+  <button id="open-gg">Open GG Dashboard</button>
+  <button id="reset-proxy" class="danger">Reset Proxy (fix Discord)</button>
+  <p style="margin-top:8px"><a href="#" id="open-options">Settings</a></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

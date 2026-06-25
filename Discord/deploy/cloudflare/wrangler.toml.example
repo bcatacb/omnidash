@@ -1,0 +1,41 @@
+# wrangler.toml — example only.
+#
+# v1 of Discord Unibox does NOT ship any Cloudflare Workers. The frontend is
+# a static Vite build served by CF Pages; the backend is on the VPS behind
+# a Cloudflare Tunnel. This file exists as a template for future use
+# (e.g. an edge auth shim, a rate-limit worker in front of /api, or a
+# Pages Function for SSR).
+#
+# To use: copy to `wrangler.toml`, fill in account_id and routes.
+
+name = "discord-unibox-edge"
+main = "src/worker.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = []
+account_id = "<YOUR_ACCOUNT_ID>"
+
+# Workers Routes (not used in v1).
+# [[routes]]
+# pattern = "gg.linktree.bond/edge/*"
+# zone_name = "linktree.bond"
+
+# KV bindings (not used in v1).
+# [[kv_namespaces]]
+# binding = "EDGE_CACHE"
+# id = "<KV_NAMESPACE_ID>"
+
+# R2 bindings (not used in v1).
+# [[r2_buckets]]
+# binding = "ASSETS"
+# bucket_name = "discord-unibox-assets"
+
+# Vars (non-secret).
+# [vars]
+# ENVIRONMENT = "production"
+
+# Secrets are added with `wrangler secret put <name>`, not in this file.
+
+# Pages-specific block — uncomment if you ever convert this to a
+# Pages Functions project.
+# [pages_build_output_dir]
+# pages_build_output_dir = "app/dist"

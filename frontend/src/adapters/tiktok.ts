@@ -59,8 +59,9 @@ export const tiktokAdapter: PlatformTransformer = {
         avatarUrl: a.avatar || null,
         status: a.status || 'connected',
       }))
-    } catch {
-      return [{ id: 'tt-demo', platform: PLATFORM, label: 'TikTok (demo)', username: '@demo', avatarUrl: null, status: 'connected' as const }]
+    } catch (e) {
+      console.error('TikTok listAccounts failed', e)
+      return []
     }
   },
 
@@ -78,10 +79,9 @@ export const tiktokAdapter: PlatformTransformer = {
         items = items.filter((c: any) => c.archived === opts.archived)
       }
       return items
-    } catch {
-      return [
-        { id: 'tt-demo-1', platform: PLATFORM, accountId: 'tt-demo', peer: { id: 'u4', displayName: 'Demo TikTok' }, lastMessagePreview: 'Demo message', lastMessageAt: new Date().toISOString(), lastMessageDirection: 'in' as const, unreadCount: 2, archived: false },
-      ]
+    } catch (e) {
+      console.error('TikTok listConversations failed', e)
+      return []
     }
   },
 
@@ -95,8 +95,9 @@ export const tiktokAdapter: PlatformTransformer = {
       const data = await res.json()
       const items = data.messages || data.items || []
       return items.map((m: any) => mapTikTokMessage(m, convId))
-    } catch {
-      return [{ id: 'tt-d1', conversationId: convId, platform: PLATFORM, direction: 'in' as const, body: 'Demo TikTok message', sentAt: new Date().toISOString() }]
+    } catch (e) {
+      console.error('TikTok getMessages failed', e)
+      return []
     }
   },
 
@@ -111,15 +112,9 @@ export const tiktokAdapter: PlatformTransformer = {
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
       return mapTikTokMessage(data, convId)
-    } catch {
-      return {
-        id: 'tt-sent-' + Date.now(),
-        conversationId: convId,
-        platform: PLATFORM,
-        direction: 'out' as const,
-        body,
-        sentAt: new Date().toISOString(),
-      }
+    } catch (e) {
+      console.error('TikTok sendMessage failed', e)
+      throw e
     }
   },
 
@@ -142,6 +137,7 @@ export const tiktokAdapter: PlatformTransformer = {
   },
 
   async startConversation(accountId, peer) {
+    // Real backend path; structure for now.
     return {
       id: `tt-conv-${Date.now()}`,
       platform: PLATFORM,

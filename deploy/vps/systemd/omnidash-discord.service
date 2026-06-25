@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniDash Discord Backend (port 4000)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/omnibox/Discord/app/server
+EnvironmentFile=/root/.omnibox-envs/discord.env
+ExecStart=/usr/bin/env PORT=4000 /usr/bin/npx tsx index.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

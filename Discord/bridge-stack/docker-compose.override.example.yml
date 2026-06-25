@@ -1,0 +1,23 @@
+# Copy this file to docker-compose.override.yml and edit for local dev.
+#
+# Common uses:
+#   - expose the orchestrator on a different host port
+#   - mount source for hot-reload during dev
+#   - pin a specific mautrix/discord image tag
+
+services:
+  orchestrator:
+    # Mount source code for hot-reload during development.
+    volumes:
+      - ./orchestrator/src:/app/src
+    environment:
+      # Switch to "development" to enable verbose logs / nodemon-style reloads.
+      NODE_ENV: development
+
+  hungryshim:
+    # Mount source for `go run` style iteration. The Dockerfile builds a
+    # static binary by default, so this override is purely for dev.
+    volumes:
+      - ./hungryshim:/src
+    environment:
+      HUNGRY_LOG_LEVEL: debug

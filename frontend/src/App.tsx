@@ -85,6 +85,10 @@ function App() {
   const [composePeerName, setComposePeerName] = useState('')
   const [composeBody, setComposeBody] = useState('')
 
+  // For forcing inbox to reload after unified actions like compose send
+  const [inboxRefreshKey, setInboxRefreshKey] = useState(0)
+  const [pendingSelectedId, setPendingSelectedId] = useState<string | null>(null)
+
   const currentPlatform = PLATFORMS.find(p => p.id === activeView) as Platform | undefined
 
   const goHome = () => setActiveView('home')
@@ -281,7 +285,7 @@ function App() {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-auto bg-[var(--bg-primary)]">
           {activeView === 'home' && <HomeDashboard onOpenPlatform={openPlatform} onOpenUnified={goUnified} />}
-          {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} initialQuery={headerSearchTerm} />}
+          {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} initialQuery={headerSearchTerm} refreshKey={inboxRefreshKey} onOpenCompose={() => setShowCompose(true)} pendingSelectedId={pendingSelectedId} onSelectedConsumed={() => setPendingSelectedId(null)} />}
           {currentPlatform && <PlatformView platform={currentPlatform} onOpenUnified={goToUnifiedFiltered} />}
         </div>
 
@@ -357,10 +361,20 @@ function App() {
                       setShowCompose(false)
                       setComposePeerName('')
                       setComposeBody('')
-                      // If currently viewing unified, a manual refresh or view switch will pick up the new convo
+
+                      // Unification step: if inbox is visible, trigger it to reload so the new convo appears
+                      if (activeView === 'unified') {
+                        setInboxRefreshKey(k => k + 1)
+                        setPendingSelectedId(conv.id)
+                      } else {
+                        // Jump to unified and pre-select the new convo
+                        goUnified()
+                        setPendingSelectedId(conv.id)
+                        // refreshKey will be handled on mount
+                      }
                     } catch (e) {
                       console.error('Unified send failed', e)
-                      alert('Failed to send (demo)')
+                      alert('Send failed — is the platform backend running?')
                     }
                   }}
                   disabled={!composeAccountId || !composePeerName.trim() || !composeBody.trim()}
@@ -501,7 +515,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
       <div className="mb-8">
         {usingDemo && (
           <div className="mb-2 px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded">
-            Using demo data — connect platform backends for live unified inbox
+            Using demo data — run platform backends (Telegram/Discord/TikTok) and set VITE_*_API envs for live data
           </div>
         )}
         <div className="flex items-center gap-2 text-[var(--green)] text-xs font-semibold tracking-[1.5px] mb-1">
@@ -586,6 +600,9 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                         const ch = t?.getCharacteristics?.()
                         return ch ? <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{ch.transport} ~{ch.typicalSendLatencyMs}ms</div> : null
                       })()}
+                      {p.implemented && s.accounts === 0 && (
+                        <div className="text-[9px] text-yellow-400 mt-0.5">Connect backend for live data</div>
+                      )}
                     </div>
                     <div className="flex -space-x-[1px]">
                       <div className="w-[13px] h-[13px] rounded-full ring-[1.5px] ring-[var(--bg-secondary)]" style={{ background: p.color }}></div>
@@ -649,7 +666,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
           <div className="uppercase text-[10px] tracking-[1.5px] text-[var(--text-muted)] mb-1 font-medium">LIVE</div>
           <div className="text-[21px] font-semibold tracking-tight mb-1 group-hover:text-[var(--brand)] transition-colors">Unified Inbox</div>
           <div className="text-[var(--text-muted)] text-[13px] max-w-md leading-snug">
-            Conversations from Telegram, Discord and TikTok in one list — powered by platform transformers. Click to use it now.
+            Conversations from all platforms in one list — powered by platform transformers. Click to use it now.
           </div>
         </div>
         <button 
@@ -713,11 +730,19 @@ function mapConversation(conv: OmniConversation, accountLabel?: string): InboxRo
 function UnifiedInbox({ 
   pendingPlatformFilter, 
   onFilterConsumed,
-  initialQuery 
+  initialQuery,
+  refreshKey,
+  onOpenCompose,
+  pendingSelectedId,
+  onSelectedConsumed
 }: { 
   pendingPlatformFilter?: PlatformId | null
   onFilterConsumed?: () => void 
   initialQuery?: string
+  refreshKey?: number
+  onOpenCompose?: () => void
+  pendingSelectedId?: string | null
+  onSelectedConsumed?: () => void
 }) {
   const [conversations, setConversations] = useState<InboxRow[]>([])
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
@@ -743,6 +768,8 @@ function UnifiedInbox({
   useEffect(() => {
     let cancelled = false
 
+    const initialMessages: Record<string, ChatMessage[]> = {}
+
     async function loadData() {
       const transformers = getAllTransformers()
       const accList: Array<{ id: string; platform: string; label: string }> = []
@@ -761,6 +788,22 @@ function UnifiedInbox({
 
           const convs = await transformer.listConversations()
           allConvs.push(...convs)
+
+          // Preload recent messages for deep unified search and instant chat history
+          for (const c of convs) {
+            try {
+              const omniMsgs = await transformer.getMessages(c.id, { limit: 8 })
+              const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
+                id: m.id,
+                from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
+                text: m.body || '',
+                at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                sentAt: m.sentAt,
+                outgoing: m.direction === 'out',
+              }))
+              initialMessages[c.id] = uiMsgs
+            } catch {}
+          }
         } catch (err) {
           console.warn(`Failed to load from ${transformer.platform}`, err)
         }
@@ -776,8 +819,8 @@ function UnifiedInbox({
         })
 
         setConversations(rows)
-        // No message seeding — full history loaded on select via transformer
-        setMessagesByConv({})
+        // Seed with preloaded recent messages for search + chat
+        setMessagesByConv(initialMessages)
 
         const hasDemo = accList.some(a => a.id.includes('demo') || a.label.includes('demo'))
         setUsingDemoUnified(hasDemo)
@@ -792,6 +835,21 @@ function UnifiedInbox({
   useEffect(() => {
     if (initialQuery != null) setQuery(initialQuery)
   }, [initialQuery])
+
+  // React to external refresh (e.g. after unified compose send)
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      reloadConversations()
+    }
+  }, [refreshKey])
+
+  // Auto-select a newly created conversation (from unified compose)
+  useEffect(() => {
+    if (pendingSelectedId) {
+      setSelectedId(pendingSelectedId)
+      onSelectedConsumed?.()
+    }
+  }, [pendingSelectedId])
 
   // Apply pending filter from parent (e.g. coming from a Platform card)
   useEffect(() => {
@@ -842,6 +900,26 @@ function UnifiedInbox({
     setConversations(rows)
     const hasDemo = accList.some(a => a.id.includes('demo') || a.label.includes('demo'))
     setUsingDemoUnified(hasDemo)
+
+    // Refresh recent messages cache so deep search and chat history stay fresh after reloads (unified data)
+    const freshMsgs: Record<string, ChatMessage[]> = {}
+    for (const row of rows) {
+      const t = transformers.find(tt => PLATFORM_LABEL[tt.platform] === row.platform)
+      if (t) {
+        try {
+          const omniMsgs = await t.getMessages(row.id, { limit: 8 })
+          freshMsgs[row.id] = omniMsgs.map(m => ({
+            id: m.id,
+            from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
+            text: m.body || '',
+            at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sentAt: m.sentAt,
+            outgoing: m.direction === 'out',
+          }))
+        } catch {}
+      }
+    }
+    setMessagesByConv(freshMsgs)
   }
 
   // Bulk actions (operate through the platform transformers)
@@ -908,11 +986,14 @@ function UnifiedInbox({
     .filter(c => {
       if (!query) return true
       const q = query.toLowerCase()
-      return (
-        c.name.toLowerCase().includes(q) ||
+      const previewMatch = c.name.toLowerCase().includes(q) ||
         c.handle.toLowerCase().includes(q) ||
         c.lastMessage.toLowerCase().includes(q)
-      )
+      if (previewMatch) return true
+
+      // Deep search in preloaded recent messages for true unified search
+      const msgs = messagesByConv[c.id] || []
+      return msgs.some(m => (m.text || '').toLowerCase().includes(q))
     })
     .sort((a, b) => {
       const ta = Date.parse(a.lastMessageAt || '') || 0
@@ -1064,12 +1145,19 @@ function UnifiedInbox({
         <div className="p-4 border-b border-[var(--border)]">
           {usingDemoUnified && (
             <div className="mb-2 px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded">
-              Demo data — connect backends
+              Demo data — run the platform backends for live data
             </div>
           )}
           <div className="flex items-center gap-3 mb-3">
             <Inbox className="w-5 h-5 text-[var(--brand)]" />
             <div className="font-semibold text-lg tracking-tight">Unified Inbox</div>
+            <button
+              onClick={() => onOpenCompose?.()}
+              className="ml-2 text-xs px-2 py-0.5 rounded bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)]"
+              title="Start new conversation (unified)"
+            >
+              + New
+            </button>
             {query && (
               <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-[var(--brand)] text-white">filtered by header</span>
             )}
