@@ -4,7 +4,7 @@
 
 set -e
 
-OMNI=/root/omnibox
+OMNI=/data/omnibox
 
 echo "Killing old processes on ports..."
 fuser -k 8000/tcp 2>/dev/null || true
@@ -45,5 +45,5 @@ echo "  curl -s http://localhost:8000/health | cat"
 echo "  curl -s http://localhost:4000/ | head -c 100"
 echo "  curl -s http://localhost:3000/ | head -c 100"
 echo ""
-echo "Open in browser: http://80.208.224.130:5174"
+echo "Open in browser: http://20.81.133.252:5174"
 echo "Logs in /tmp/*.log"

@@ -23,7 +23,7 @@ npm --version || true
 python3 --version
 
 echo "=== Clone or update repo (adjust if you use different location) ==="
-REPO_DIR="/root/omnibox"
+REPO_DIR="/data/omnibox"
 if [ ! -d "$REPO_DIR" ]; then
   # If you scp'ed instead, this will be skipped
   git clone https://github.com/your-org/omnibox.git "$REPO_DIR" || echo "git clone failed or private - use scp from your machine instead"
@@ -78,9 +78,9 @@ EOT
 
 cat > /root/.omnibox-envs/frontend.env << 'EOT'
 # Build-time vars for the unified frontend (baked at npm run build)
-VITE_TELEGRAM_API=http://80.208.224.130:8000
-VITE_DISCORD_API=http://80.208.224.130:4000
-VITE_TIKTOK_API=http://80.208.224.130:3000
+VITE_TELEGRAM_API=http://20.81.133.252:8000
+VITE_DISCORD_API=http://20.81.133.252:4000
+VITE_TIKTOK_API=http://20.81.133.252:3000
 EOT
 
 echo "=== Unified DB schema (run after you have postgres + UNIFIED_DATABASE_URL) ==="
@@ -110,5 +110,5 @@ echo "  curl http://localhost:8000/health"
 echo "  curl http://localhost:4000/ | head -c 200"
 echo "  curl http://localhost:3000/ | head -c 200"
 echo ""
-echo "Then from your machine: http://80.208.224.130:5174 (or build + serve)"
+echo "Then from your machine: http://20.81.133.252:5174 (or build + serve)"
 echo "Done with base setup."
