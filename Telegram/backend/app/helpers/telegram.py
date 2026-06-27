@@ -276,6 +276,39 @@ def unregister_persistent_account_client(account_id: str, client: TelegramClient
         PERSISTENT_CLIENT_IDS.discard(id(removed))
 
 
+def _telethon_proxy_from_json(raw: str | None):
+    """Build a Telethon/PySocks proxy tuple from an account's proxy_json so each
+    account egresses from its own IP (ban-risk hardening). Returns None when unset,
+    which preserves the previous (no-proxy) behavior exactly.
+
+    proxy_json shape: {"type": "socks5"|"socks4"|"http", "host": str, "port": int,
+                       "username"?: str, "password"?: str}
+    """
+    if not raw:
+        return None
+    try:
+        cfg = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(cfg, dict) or not cfg.get("host") or not cfg.get("port"):
+        return None
+    import socks  # PySocks
+    kind = {
+        "socks5": socks.SOCKS5,
+        "socks4": socks.SOCKS4,
+        "http": socks.HTTP,
+        "https": socks.HTTP,
+    }.get(str(cfg.get("type") or cfg.get("protocol") or "socks5").lower(), socks.SOCKS5)
+    return (
+        kind,
+        str(cfg["host"]),
+        int(cfg["port"]),
+        True,
+        cfg.get("username") or None,
+        cfg.get("password") or None,
+    )
+
+
 async def _open_account_client_for_user(user_id: str, account_id: str) -> tuple[sqlite3.Row, TelegramClient]:
     with db() as conn:
         account = conn.execute(
@@ -300,6 +333,7 @@ async def _open_account_client_for_user(user_id: str, account_id: str) -> tuple[
     api_hash = account["api_hash"] or settings.telegram_api_hash
     fp_json = account["device_fingerprint_json"] or "{}"
     fp = json.loads(fp_json)
+    proxy = _telethon_proxy_from_json(account["proxy_json"])
     last_error: Exception | None = None
     for attempt in range(10):
         client: TelegramClient | None = None
@@ -308,6 +342,7 @@ async def _open_account_client_for_user(user_id: str, account_id: str) -> tuple[
                 _session_name_for_client(account["session_file"]),
                 api_id,
                 api_hash,
+                proxy=proxy,
             )
             if fp.get("device_model"):
                 _apply_fingerprint(client, fp)
