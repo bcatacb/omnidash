@@ -67,7 +67,7 @@ export function cloudflareWorkersAI(cfg: {
   return new OpenAICompatProvider({
     baseUrl: `https://api.cloudflare.com/client/v4/accounts/${cfg.accountId}/ai/v1`,
     apiKey: cfg.apiToken,
-    model: cfg.model ?? '@cf/meta/llama-3.1-8b-instruct',
+    model: cfg.model ?? '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
     name: 'cloudflare-workers-ai',
     fetch: cfg.fetch,
   })

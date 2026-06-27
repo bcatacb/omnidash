@@ -42,10 +42,12 @@ export class InboxAssistant {
     const user = `Platform ${conv.platform}, with ${conv.peer.displayName}:\n${transcript(conv, messages)}\n\nClassify the latest state.`
     const raw = await this.llm.chat(
       [{ role: 'system', content: sys }, { role: 'user', content: user }],
-      { json: true, temperature: 0 }
+      { temperature: 0 }
     )
+    // Some Workers AI models don't honor response_format; extract the JSON object from the text.
+    const match = raw.match(/\{[\s\S]*\}/)
     try {
-      const j = JSON.parse(raw)
+      const j = JSON.parse(match ? match[0] : raw)
       return {
         label: (j.label as TriageLabel) ?? 'other',
         confidence: Number(j.confidence) || 0,
