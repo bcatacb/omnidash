@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniBox — Status & What's Needed</title>
+<style>
+  :root{--bg:#0f1117;--panel:#171a23;--panel2:#1e222e;--line:#2a2f3d;--ink:#e7e9ee;--muted:#9aa3b2;--soft:#c3c9d6;
+        --brand:#7c8cff;--green:#3ecf8e;--amber:#f0b429;--red:#ff6b6b;--cyan:#39c2d7;--radius:14px}
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;background:linear-gradient(180deg,#0c0e14,#0f1117 240px);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 90px}
+  header.hero{padding:56px 0 34px;border-bottom:1px solid var(--line);margin-bottom:36px}
+  .kicker{display:inline-flex;gap:8px;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+          color:var(--brand);background:rgba(124,140,255,.1);border:1px solid rgba(124,140,255,.25);padding:6px 12px;border-radius:999px}
+  h1{font-size:36px;line-height:1.12;margin:16px 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--soft);font-size:17px;max-width:720px}
+  .meta{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+  .pill{font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+  h2{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:40px 0 14px;font-weight:700}
+  .secnum{color:var(--brand);font-weight:800;margin-right:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  td code,li code{background:#0c0e14;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:12.5px ui-monospace,Menlo,Consolas,monospace;color:#cdd3ff}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .b-green{background:rgba(62,207,142,.15);color:var(--green);border:1px solid rgba(62,207,142,.3)}
+  .b-amber{background:rgba(240,180,41,.15);color:var(--amber);border:1px solid rgba(240,180,41,.3)}
+  .b-red{background:rgba(255,107,107,.15);color:var(--red);border:1px solid rgba(255,107,107,.3)}
+  .b-blue{background:rgba(124,140,255,.15);color:var(--brand);border:1px solid rgba(124,140,255,.3)}
+  .callout{border-left:3px solid var(--brand);background:linear-gradient(90deg,rgba(124,140,255,.09),transparent);border-radius:10px;padding:14px 18px;color:var(--soft);margin:12px 0}
+  .callout.red{border-color:var(--red);background:linear-gradient(90deg,rgba(255,107,107,.1),transparent)}
+  .callout.amber{border-color:var(--amber);background:linear-gradient(90deg,rgba(240,180,41,.1),transparent)}
+  .callout.green{border-color:var(--green);background:linear-gradient(90deg,rgba(62,207,142,.1),transparent)}
+  ol.need{counter-reset:n;list-style:none;padding:0;margin:0}
+  ol.need li{counter-increment:n;position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px 14px 52px;margin:10px 0;color:var(--soft)}
+  ol.need li:before{content:counter(n);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-weight:800;color:var(--brand);background:rgba(124,140,255,.12);border:1px solid rgba(124,140,255,.3)}
+  ol.need b{color:var(--ink)} .foot{margin-top:50px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  a{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <span class="kicker">◆ Status Snapshot</span>
+    <h1>OmniBox — Where We Are &amp; What's Needed</h1>
+    <p class="sub">Live platforms, what's built, and the exact things still required to finish — focused on Telegram, Discord, TikTok + the Cloudflare/AI backbone (cloud-phone apps parked).</p>
+    <div class="meta">
+      <span class="pill">📅 2026-06-27</span>
+      <span class="pill">branch: omnibox-consolidation</span>
+      <span class="pill">4 commits</span>
+      <span class="pill">dashboard: app.deadbread.space</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="secnum">01</span> Live right now</h2>
+    <table>
+      <tr><th>Component</th><th>Status</th><th>Detail</th></tr>
+      <tr><td><b>Dashboard (shell)</b></td><td><span class="badge b-green">LIVE</span></td><td><code>https://app.deadbread.space</code> — unified inbox + embedded full apps</td></tr>
+      <tr><td><b>Telegram</b></td><td><span class="badge b-green">LIVE</span></td><td>81 accounts, conversations flowing (Telethon backend)</td></tr>
+      <tr><td><b>Discord</b></td><td><span class="badge b-green">LIVE</span></td><td>93 accounts, ~100 convos (Unibox stack via tunnel)</td></tr>
+      <tr><td><b>TikTok (c2)</b></td><td><span class="badge b-amber">WIRED · EMPTY</span></td><td>endpoint works; 0 accounts connected in c2 yet</td></tr>
+      <tr><td><b>AI brain</b></td><td><span class="badge b-green">LIVE</span></td><td>Cloudflare Workers AI (llama-3.3-70b) — translate/draft/triage; ✨ Draft button in inbox</td></tr>
+      <tr><td><b>hermes dashboard</b></td><td><span class="badge b-green">LIVE</span></td><td><code>https://hermes.deadbread.space</code> (auth-gated)</td></tr>
+      <tr><td><b>Cloudflare tunnels</b></td><td><span class="badge b-green">LIVE</span></td><td>app / discord / telegram / tiktok / hermes — HTTPS, no open ports</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="secnum">02</span> Built &amp; committed (the monorepo)</h2>
+    <table>
+      <tr><th>Piece</th><th>What</th></tr>
+      <tr><td><b>@omnibox/core</b></td><td>canonical Omni types · PlatformTransformer + CloudPhoneTransport contracts · DeviceScheduler</td></tr>
+      <tr><td><b>@omnibox/ai</b></td><td>InboxAssistant (triage/draft/translate), provider-pluggable (Workers AI / OpenAI-compat)</td></tr>
+      <tr><td><b>@omnibox/cloud-phone</b></td><td>CloudPhoneClient · UiAutomator · VisionAutomator (screenshot computer-use)</td></tr>
+      <tr><td><b>platforms/tiktok</b></td><td>absorbed live c2 (canonical, with fixes)</td></tr>
+      <tr><td><b>platforms/discord</b></td><td>absorbed live source (runtime stays containerized; secrets purged)</td></tr>
+      <tr><td><b>services/appeal-bot · transports/cloud-phone</b></td><td>absorbed AppellantBot · duoapi console</td></tr>
+      <tr><td><b>services/ai-api</b></td><td>deployed AI endpoint (systemd omnidash-ai, token server-side)</td></tr>
+    </table>
+    <div class="callout amber">⚠️ <b>Deployment note:</b> the running servers still use the <b>original deploy</b>; I've been hot-patching individual files. A clean single deploy of the committed monorepo (<b>Phase 6</b>) is still pending — committed code and running servers are partly out of sync by design until then.</div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">03</span> Parked (cloud-phone apps: Snapchat / IG / Facebook)</h2>
+    <div class="callout">Transport + engine code is <b>built and waiting</b>. Live calibration deferred because: DuoPlus runs <b>one phone at a time</b> (handled by DeviceScheduler), IG/Snap render an <b>empty UI tree</b> (need vision/"computer use" — built), and most of all <b>IG/Snap won't allow logins</b> on these devices (account-provisioning problem). Resumes when there are accounts that can stay logged in. Findings: <code>docs/CLOUD_PHONE_FINDINGS.md</code>.</div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">04</span> 🔴 What's needed from you</h2>
+    <ol class="need">
+      <li><b>Telegram ban-risk activation</b> — a <b>proxy pool</b> (residential/mobile, <code>host:port[:user:pass]</code>) + a <b>few extra Telegram <code>api_id</code>/<code>api_hash</code></b> (my.telegram.org). Mechanism is fixed (PySocks installed, proxy wired, per-account api supported); just needs these to populate across the 89 accounts. Today: <b>1 IP, 1 API key</b> for all 89.</li>
+      <li><b>TikTok (c2) data</b> — connect accounts in c2 (currently 0) so the TikTok inbox shows data. (Cloud-phone TikTok is the separate, parked path.)</li>
+      <li><b>Discord secret rotation</b> <span class="badge b-red">SECURITY</span> — the leaked <code>TOKEN_ENCRYPTION_KEY</code> + DB password + proxy cred are already exposed. Rotate them, re-encrypt tokens, purge git history, revoke the third-party GitHub account. (I purged the files from the new repo copy; the original exposure still stands.)</li>
+      <li><b>Cloudflare scope</b> — current token does DNS + tunnels + Workers AI. To stand up the backbone (R2 backups, Access SSO on dashboards, Queues/Durable Objects) I'll need a token with those, and confirmation of <b>Workers Paid</b> for DO/Queues at scale.</li>
+      <li><b>A few decisions</b> (see §05).</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="secnum">05</span> ⚙️ Open decisions</h2>
+    <table>
+      <tr><th>Decision</th><th>Default I'll take if you don't pick</th></tr>
+      <tr><td>Monorepo tooling</td><td>npm workspaces (already wired)</td></tr>
+      <tr><td>Database</td><td>keep per-platform stores + sync into <code>omnibox_unified</code></td></tr>
+      <tr><td>Hosting</td><td>keep heavy Discord stack on old server; consolidate the rest on the new box</td></tr>
+      <tr><td>Real deploy (Phase 6)</td><td>do it after the AI inbox features + shared-core extraction</td></tr>
+      <tr><td>Next build</td><td>finish AI inbox (Translate button + auto-triage badges), then shared core</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="secnum">06</span> 🔐 Security to-dos (tracked)</h2>
+    <div class="callout red"><b>Active / highest:</b> rotate the leaked Discord secrets (above); if c2 is ever public, it has <b>no auth / open CORS / no TLS / superuser DB</b> — shut the open <code>c2.effortlessmetaphor.org</code> door and gate it.</div>
+    <div class="callout">Full checklist (apply as each piece deploys): <code>docs/SECURITY_HARDENING.md</code> — auth/Access on dashboards, secrets in Cloudflare not git, least-priv DB roles, per-account proxies + daily caps + warmup baked into the shared core.</div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">07</span> Suggested next moves</h2>
+    <div class="callout green">1) Finish the AI inbox (🌐 Translate + 🏷️ auto-triage badges) — fast, high-value on live TG/Discord. &nbsp; 2) You line up proxies + api_ids → I close the Telegram ban-risk. &nbsp; 3) Extract the shared core. &nbsp; 4) Phase 6 real deploy. &nbsp; 5) Cloudflare backbone (R2/Access) when you grant scope.</div>
+  </section>
+
+  <div class="foot">OmniBox status snapshot · docs/OMNIBOX_STATUS.html · plan: docs/OMNIBOX_MERGE_PLAN.html · tracker: MONOREPO.md</div>
+</div>
+</body>
+</html>
