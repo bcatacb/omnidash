@@ -843,6 +843,7 @@ function UnifiedInbox({
   const [messagesByConv, setMessagesByConv] = useState<Record<string, ChatMessage[]>>({})
   const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set())
   const [composer, setComposer] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLInputElement>(null)
 
@@ -1178,6 +1179,35 @@ function UnifiedInbox({
       } catch (e) {
         console.warn('Failed to load messages or mark read via transformer', e)
       }
+    }
+  }
+
+  // AI draft via the server-side /ai-api endpoint (Cloudflare Workers AI).
+  async function draftWithAI() {
+    if (!selected) return
+    setAiBusy(true)
+    try {
+      const msgs = (messagesByConv[selected.id] || []).map(m => ({
+        direction: m.outgoing ? 'out' : 'in',
+        body: m.text,
+      }))
+      const res = await fetch('/ai-api/draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          conversation: { platform: selected.platform, peer: { displayName: selected.name } },
+          messages: msgs,
+        }),
+      })
+      const data = await res.json()
+      if (data.text) {
+        setComposer(data.text)
+        setTimeout(() => composerRef.current?.focus(), 30)
+      }
+    } catch (e) {
+      console.warn('AI draft failed', e)
+    } finally {
+      setAiBusy(false)
     }
   }
 
@@ -1574,6 +1604,14 @@ function UnifiedInbox({
                   })()})`}
                   className="flex-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--brand)]"
                 />
+                <button
+                  onClick={draftWithAI}
+                  disabled={aiBusy}
+                  className="px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--bg-tertiary)] text-sm disabled:opacity-50 whitespace-nowrap"
+                  title="Draft a reply with AI (Workers AI)"
+                >
+                  {aiBusy ? '…' : '✨ Draft'}
+                </button>
                 <button
                   onClick={sendMessage}
                   disabled={!composer.trim()}
