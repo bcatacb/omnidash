@@ -1,0 +1,11 @@
+node_modules/
+server/node_modules/
+dist/
+server/sessions/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.staging.example
+.DS_Store
+.vercel

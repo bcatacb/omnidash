@@ -98,19 +98,26 @@ function App() {
   // Load sidebar unread count + per-platform (lightweight, runs on mount)
   useEffect(() => {
     async function loadSidebarUnread() {
-      try {
-        const ts = getAllTransformers()
-        let total = 0
-        const per: Record<string, number> = {}
-        for (const t of ts) {
-          const cs = await t.listConversations({ archived: false })
-          const u = cs.reduce((n, c) => n + (c.unreadCount || 0), 0)
-          per[t.platform] = u
-          total += u
+      const ts = getAllTransformers()
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+
+      const results = await Promise.allSettled(ts.map(async (t) => {
+        const cs = await withTimeout(t.listConversations({ archived: false }), 5000)
+        const u = cs.reduce((n, c) => n + (c.unreadCount || 0), 0)
+        return { platform: t.platform, unread: u }
+      }))
+
+      let total = 0
+      const per: Record<string, number> = {}
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          per[r.value.platform] = r.value.unread
+          total += r.value.unread
         }
-        setSidebarUnread(total)
-        setPlatformUnreads(per)
-      } catch {}
+      }
+      setSidebarUnread(total)
+      setPlatformUnreads(per)
     }
     loadSidebarUnread()
   }, [])
@@ -286,7 +293,7 @@ function App() {
         <div className="flex-1 overflow-auto bg-[var(--bg-primary)]">
           {activeView === 'home' && <HomeDashboard onOpenPlatform={openPlatform} onOpenUnified={goUnified} />}
           {activeView === 'unified' && <UnifiedInbox pendingPlatformFilter={pendingUnifiedPlatform} onFilterConsumed={() => setPendingUnifiedPlatform(null)} initialQuery={headerSearchTerm} refreshKey={inboxRefreshKey} onOpenCompose={() => setShowCompose(true)} pendingSelectedId={pendingSelectedId} onSelectedConsumed={() => setPendingSelectedId(null)} />}
-          {currentPlatform && <PlatformView platform={currentPlatform} onOpenUnified={goToUnifiedFiltered} />}
+          {currentPlatform && <EmbeddedApp platform={currentPlatform} />}
         </div>
 
         {/* Unified Compose Modal - step toward full cross-platform sending */}
@@ -436,12 +443,50 @@ type PlatformSummary = {
   lastPreview: string
 }
 
+// Each platform's standalone dashboard ("full app"), env-configured per platform
+// (VITE_<PLATFORM>_APP_URL). Served over Cloudflare Tunnel on *.deadbread.space.
+function platformAppUrl(platformId: string): string | undefined {
+  const env = (import.meta as any).env || {}
+  const urls: Record<string, string | undefined> = {
+    telegram: env.VITE_TELEGRAM_APP_URL,
+    discord: env.VITE_DISCORD_APP_URL,
+    tiktok: env.VITE_TIKTOK_APP_URL,
+  }
+  return urls[platformId]
+}
+
+function openFullApp(platformId: string) {
+  const url = platformAppUrl(platformId)
+  if (url) window.open(url, '_blank', 'noopener,noreferrer')
+  else alert(`The full app for ${platformId} isn't configured yet.`)
+}
+
+// Embeds a platform's full app inside the OmniDash shell (iframe).
+function EmbeddedApp({ platform }: { platform: { id: string; name: string } }) {
+  const url = platformAppUrl(platform.id)
+  if (!url) return (
+    <div className="p-8 text-[var(--text-muted)] text-sm">
+      No standalone app is configured for {platform.name} yet.
+    </div>
+  )
+  return (
+    <div className="h-full w-full flex flex-col">
+      <div className="h-9 px-4 flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] text-xs flex-shrink-0">
+        <span className="text-[var(--text-muted)]">{platform.name} · full app</span>
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--brand)] hover:underline">Open in new tab ↗</a>
+      </div>
+      <iframe src={url} title={`${platform.name} full app`} className="flex-1 w-full border-0" />
+    </div>
+  )
+}
+
 function HomeDashboard({ onOpenPlatform, onOpenUnified }: { 
   onOpenPlatform: (id: PlatformId) => void; 
   onOpenUnified: () => void;
 }) {
   const [totalUnread, setTotalUnread] = useState(0)
   const [activeThreads, setActiveThreads] = useState(0)
+  const [todayCount, setTodayCount] = useState(0)
   const [platformSummaries, setPlatformSummaries] = useState<Record<PlatformId, PlatformSummary>>({
     telegram: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
     discord: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
@@ -459,6 +504,55 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
 
     async function loadLive() {
       const adpts = getAllTransformers()
+
+      // Fetch each platform in parallel with a 5s timeout per platform.
+      // This prevents one unreachable backend from blocking the entire dashboard.
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
+
+      const results = await Promise.allSettled(adpts.map(async (ad) => {
+        const plat = ad.platform as PlatformId
+        // Fetch accounts and conversations INDEPENDENTLY — a slow/failing
+        // conversations call (e.g. Telegram's cache warming) must not throw away
+        // the account count too. Conversations gets a longer timeout for the same
+        // reason.
+        let accs: OmniAccount[] = []
+        let convs: OmniConversation[] = []
+        let error: string | null = null
+        try {
+          accs = await withTimeout(ad.listAccounts(), 8000)
+        } catch (e) {
+          error = e instanceof Error ? e.message : String(e)
+          console.warn(`[OmniDash] ${plat} listAccounts failed: ${error}`)
+        }
+        try {
+          convs = await withTimeout(ad.listConversations({ archived: false }), 15000)
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.warn(`[OmniDash] ${plat} listConversations failed: ${msg}`)
+          if (!error) error = msg
+        }
+        const unread = convs.reduce((n, c) => n + c.unreadCount, 0)
+        const recent = [...convs].sort((a, b) =>
+          (b.lastMessageAt || '').localeCompare(a.lastMessageAt || '')
+        )[0]
+        return {
+          plat,
+          accs,
+          convs,
+          summary: {
+            accounts: accs.length,
+            conversations: convs.length,
+            unread,
+            lastPreview: recent?.lastMessagePreview
+              || (accs.length ? 'No messages yet' : (error ? '⚠ Backend unreachable' : '—')),
+          } as PlatformSummary,
+          error,
+        }
+      }))
+
+      if (cancelled) return
+
       const allConvs: OmniConversation[] = []
       const allAccs: OmniAccount[] = []
       const sums: Record<PlatformId, PlatformSummary> = {
@@ -470,39 +564,28 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
         facebook: { accounts: 0, conversations: 0, unread: 0, lastPreview: '—' },
       }
 
-      for (const ad of adpts) {
-        const plat = ad.platform as PlatformId
-
-        try {
-          const accs = await ad.listAccounts()
-          allAccs.push(...accs)
-          sums[plat].accounts = accs.length
-
-          const convs = await ad.listConversations({ archived: false })
-          allConvs.push(...convs)
-          sums[plat].conversations = convs.length
-          sums[plat].unread = convs.reduce((n, c) => n + c.unreadCount, 0)
-
-          // pick most recent preview
-          const recent = [...convs].sort((a, b) =>
-            (b.lastMessageAt || '').localeCompare(a.lastMessageAt || '')
-          )[0]
-          sums[plat].lastPreview = recent?.lastMessagePreview || 'No messages yet'
-        } catch {}
+      for (const r of results) {
+        const val = r.status === 'fulfilled' ? r.value : null
+        if (!val) continue
+        sums[val.plat] = val.summary
+        allAccs.push(...val.accs)
+        allConvs.push(...val.convs)
       }
 
       const unread = allConvs.reduce((n, c) => n + c.unreadCount, 0)
       const active = allConvs.length
+      const todayStr = new Date().toDateString()
+      const today = allConvs.reduce((n, c) =>
+        n + (c.lastMessageAt && new Date(c.lastMessageAt).toDateString() === todayStr ? 1 : 0), 0)
 
-      if (!cancelled) {
-        setTotalUnread(unread)
-        setActiveThreads(active)
-        setPlatformSummaries(sums)
-        setTotalAccounts(allAccs.length)
-        setTotalConvs(allConvs.length)
-        const hasDemo = allAccs.some(a => a.id.includes('demo') || a.label.includes('demo'))
-        setUsingDemo(hasDemo)
-      }
+      setTotalUnread(unread)
+      setActiveThreads(active)
+      setTodayCount(today)
+      setPlatformSummaries(sums)
+      setTotalAccounts(allAccs.length)
+      setTotalConvs(allConvs.length)
+      const hasDemo = allAccs.some(a => (a.id || '').includes('demo') || (a.label || '').includes('demo'))
+      setUsingDemo(hasDemo)
     }
 
     loadLive()
@@ -530,7 +613,7 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
           <div className="hidden md:flex items-center gap-8 text-sm">
             <div>
               <div className="text-[var(--text-muted)] text-xs tracking-widest">TODAY</div>
-              <div className="text-2xl font-semibold tabular-nums">147 <span className="text-base font-normal text-[var(--text-muted)]">msgs</span></div>
+              <div className="text-2xl font-semibold tabular-nums">{todayCount} <span className="text-base font-normal text-[var(--text-muted)]">active</span></div>
             </div>
             <div>
               <div className="text-[var(--text-muted)] text-xs tracking-widest">UNREAD</div>
@@ -601,7 +684,9 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                         return ch ? <div className="text-[9px] text-[var(--text-muted)] mt-0.5">{ch.transport} ~{ch.typicalSendLatencyMs}ms</div> : null
                       })()}
                       {p.implemented && s.accounts === 0 && (
-                        <div className="text-[9px] text-yellow-400 mt-0.5">Connect backend for live data</div>
+                        <div className="text-[9px] text-yellow-400 mt-0.5">
+                          {s.lastPreview.startsWith('⚠') ? s.lastPreview : 'Connect backend for live data'}
+                        </div>
                       )}
                     </div>
                     <div className="flex -space-x-[1px]">
@@ -634,8 +719,8 @@ function HomeDashboard({ onOpenPlatform, onOpenUnified }: {
                         >
                           Open Inbox
                         </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onOpenPlatform(p.id); }}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openFullApp(p.id); }}
                           className="py-2 text-sm font-medium rounded-[8px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] transition active:scale-[0.985]"
                         >
                           Launch full app
@@ -748,6 +833,7 @@ function UnifiedInbox({
   const [accounts, setAccounts] = useState<Array<{ id: string; platform: string; label: string }>>([])
   const [usingDemoUnified, setUsingDemoUnified] = useState(false)
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
+  const [showAccountFilter, setShowAccountFilter] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState(initialQuery || '')
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat' | 'Facebook'>('All')
@@ -768,63 +854,74 @@ function UnifiedInbox({
   useEffect(() => {
     let cancelled = false
 
-    const initialMessages: Record<string, ChatMessage[]> = {}
-
     async function loadData() {
       const transformers = getAllTransformers()
       const accList: Array<{ id: string; platform: string; label: string }> = []
       const accMap: Record<string, { label: string; platform: string }> = {}
       const allConvs: OmniConversation[] = []
 
-      for (const transformer of transformers) {
-        try {
-          const accs = await transformer.listAccounts()
-          for (const a of accs) {
-            const pLabel = PLATFORM_LABEL[transformer.platform]
-            const entry = { id: a.id, platform: pLabel, label: a.label || a.username }
-            accList.push(entry)
-            accMap[a.id] = { label: entry.label, platform: transformer.platform }
-          }
+      // Fetch each platform in parallel with a 5s timeout.
+      const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
 
-          const convs = await transformer.listConversations()
-          allConvs.push(...convs)
+      // Accounts and conversations are fetched INDEPENDENTLY per platform — a slow
+      // conversations call (e.g. Telegram cache warming) must not drop the whole
+      // platform. Inner fn never throws, so every result is fulfilled.
+      const platformResults = await Promise.allSettled(transformers.map(async (transformer) => {
+        let accs: OmniAccount[] = []
+        let convs: OmniConversation[] = []
+        try { accs = await withTimeout(transformer.listAccounts(), 8000) }
+        catch (e) { console.warn(`[inbox] ${transformer.platform} listAccounts:`, e) }
+        try { convs = await withTimeout(transformer.listConversations(), 15000) }
+        catch (e) { console.warn(`[inbox] ${transformer.platform} listConversations:`, e) }
+        return { transformer, accs, convs }
+      }))
 
-          // Preload recent messages for deep unified search and instant chat history
-          for (const c of convs) {
-            try {
-              const omniMsgs = await transformer.getMessages(c.id, { limit: 8 })
-              const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
-                id: m.id,
-                from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
-                text: m.body || '',
-                at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                sentAt: m.sentAt,
-                outgoing: m.direction === 'out',
-              }))
-              initialMessages[c.id] = uiMsgs
-            } catch {}
-          }
-        } catch (err) {
-          console.warn(`Failed to load from ${transformer.platform}`, err)
+      const convOwner: Array<{ transformer: any; conv: OmniConversation }> = []
+      for (const result of platformResults) {
+        if (result.status !== 'fulfilled') continue
+        const { transformer, accs, convs } = result.value
+        for (const a of accs) {
+          const pLabel = PLATFORM_LABEL[transformer.platform]
+          const entry = { id: a.id, platform: pLabel, label: a.label || a.username }
+          accList.push(entry)
+          accMap[a.id] = { label: entry.label, platform: transformer.platform }
         }
+        allConvs.push(...convs)
+        for (const c of convs) convOwner.push({ transformer, conv: c })
       }
 
-      if (!cancelled) {
-        setAccounts(accList)
-        setSelectedAccountIds(accList.map(a => a.id))
+      if (cancelled) return
 
-        const rows = allConvs.map((c) => {
-          const acc = accMap[c.accountId]
-          return mapConversation(c, acc?.label)
-        })
+      // Render the inbox NOW — don't block on message preloading.
+      setAccounts(accList)
+      setSelectedAccountIds(accList.map(a => a.id))
+      setConversations(allConvs.map((c) => mapConversation(c, accMap[c.accountId]?.label)))
+      const hasDemo = accList.some(a => (a.id || '').includes('demo') || (a.label || '').includes('demo'))
+      setUsingDemoUnified(hasDemo)
 
-        setConversations(rows)
-        // Seed with preloaded recent messages for search + chat
-        setMessagesByConv(initialMessages)
-
-        const hasDemo = accList.some(a => a.id.includes('demo') || a.label.includes('demo'))
-        setUsingDemoUnified(hasDemo)
-      }
+      // Preload recent messages in the BACKGROUND. Skip browser-transport
+      // platforms (e.g. TikTok) whose getMessages triggers a live Playwright
+      // scrape — those must only fetch on explicit click, never on inbox load.
+      const preloadable = convOwner.filter(({ transformer }) =>
+        transformer.getCharacteristics?.().transport !== 'browser').slice(0, 30)
+      Promise.allSettled(preloadable.map(async ({ transformer, conv }) => {
+        const omniMsgs = await withTimeout(transformer.getMessages(conv.id, { limit: 8 }), 4000)
+        const uiMsgs: ChatMessage[] = omniMsgs.map(m => ({
+          id: m.id,
+          from: m.author?.name || (m.direction === 'out' ? 'You' : 'Them'),
+          text: m.body || '',
+          at: new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sentAt: m.sentAt,
+          outgoing: m.direction === 'out',
+        }))
+        return { convId: conv.id, uiMsgs }
+      })).then(rs => {
+        if (cancelled) return
+        const preloaded: Record<string, ChatMessage[]> = {}
+        for (const r of rs) if (r.status === 'fulfilled') preloaded[r.value.convId] = r.value.uiMsgs
+        setMessagesByConv(prev => ({ ...prev, ...preloaded }))
+      })
     }
 
     loadData()
@@ -1220,29 +1317,37 @@ function UnifiedInbox({
               {isBulkMode ? 'Done selecting' : 'Select'}
             </button>
 
-            {/* Account filter chips */}
+            {/* Account filter — compact dropdown (can be 150+ accounts) */}
             {accounts.length > 0 && (
-              <div className="ml-3 flex gap-1 flex-wrap text-xs">
-                {accounts.map(acc => {
-                  const isSel = selectedAccountIds.includes(acc.id)
-                  const t = getTransformer(acc.platform.toLowerCase() as any)
-                  const ch = t?.getCharacteristics?.()
-                  const transportHint = ch ? ` (${ch.transport})` : ''
-                  return (
-                    <button
-                      key={acc.id}
-                      onClick={() => {
-                        setSelectedAccountIds(prev =>
-                          isSel ? prev.filter(x => x !== acc.id) : [...prev, acc.id]
-                        )
-                      }}
-                      className={`px-2 py-0.5 rounded border transition ${isSel ? 'bg-[var(--brand)] text-white border-[var(--brand)]' : 'border-[var(--border)] hover:bg-[var(--bg-tertiary)]'}`}
-                      title={ch ? `${ch.transport} • ~${ch.typicalSendLatencyMs}ms` : ''}
-                    >
-                      {acc.platform}: {acc.label}{transportHint}
-                    </button>
-                  )
-                })}
+              <div className="ml-2 relative">
+                <button
+                  onClick={() => setShowAccountFilter(v => !v)}
+                  className="text-xs px-2 py-0.5 rounded-md border border-[var(--border)] hover:bg-[var(--bg-tertiary)]"
+                >
+                  Accounts: {selectedAccountIds.length === accounts.length ? `All (${accounts.length})` : `${selectedAccountIds.length}/${accounts.length}`} ▾
+                </button>
+                {showAccountFilter && (
+                  <div className="absolute z-30 mt-1 left-0 w-72 max-h-80 overflow-y-auto bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl p-2">
+                    <div className="flex gap-3 mb-2 px-1 sticky top-0 bg-[var(--bg-secondary)] pb-1">
+                      <button onClick={() => setSelectedAccountIds(accounts.map(a => a.id))} className="text-xs text-[var(--brand)] hover:underline">Select all</button>
+                      <button onClick={() => setSelectedAccountIds([])} className="text-xs text-[var(--text-muted)] hover:underline">Clear</button>
+                    </div>
+                    {accounts.map(acc => {
+                      const isSel = selectedAccountIds.includes(acc.id)
+                      return (
+                        <label key={acc.id} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[var(--bg-tertiary)] cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={isSel}
+                            onChange={() => setSelectedAccountIds(prev => isSel ? prev.filter(x => x !== acc.id) : [...prev, acc.id])}
+                            className="accent-[var(--brand)]"
+                          />
+                          <span className="truncate">{acc.platform}: {acc.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1266,10 +1371,13 @@ function UnifiedInbox({
             <div className="p-8 text-center text-[var(--text-muted)] text-sm">No conversations match.</div>
           )}
           {filtered.map(conv => (
-            <button
+            <div
               key={conv.id}
+              role="button"
+              tabIndex={0}
               onClick={() => selectConversation(conv.id)}
-              className={`w-full text-left px-4 py-3 border-b border-[var(--border)] flex gap-3 hover:bg-[var(--bg-message-hover)] transition ${
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectConversation(conv.id) } }}
+              className={`w-full text-left px-4 py-3 border-b border-[var(--border)] flex gap-3 hover:bg-[var(--bg-message-hover)] transition cursor-pointer ${
                 selectedId === conv.id ? 'bg-[var(--bg-message-hover)]' : ''
               }`}
             >
@@ -1346,7 +1454,7 @@ function UnifiedInbox({
                   </div>
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
       </div>
@@ -1580,8 +1688,8 @@ function PlatformView({
               >
                 <Inbox className="w-4 h-4" /> Open {platform.name} Inbox
               </button>
-              <button 
-                onClick={() => onOpenUnified?.(platform.id)}
+              <button
+                onClick={() => openFullApp(platform.id)}
                 className="flex items-center justify-center gap-2 px-5 py-3 rounded-[10px] border border-[var(--border)] hover:bg-[var(--bg-tertiary)] text-sm font-medium transition"
               >
                 <ExternalLink className="w-4 h-4" /> Open full app

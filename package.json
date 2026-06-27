@@ -1,18 +1,27 @@
 {
-  "name": "omnidash",
-  "version": "0.1.0",
+  "name": "omnibox",
+  "version": "0.2.0",
   "private": true,
-  "description": "OmniDash - Unified operator layer for Telegram + Discord + TikTok (monorepo)",
+  "description": "OmniBox — one monorepo for the unified operator shell + every platform, transport, and service. See MONOREPO.md.",
   "workspaces": [
-    "frontend"
+    "frontend",
+    "packages/*",
+    "transports/cloud-phone/shared",
+    "transports/cloud-phone/proxy",
+    "transports/cloud-phone/web",
+    "transports/cloud-phone/mock-server",
+    "transports/cloud-phone/client",
+    "platforms/snapchat"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=frontend",
     "build": "npm run build --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
     "preview": "npm run preview --workspace=frontend",
-    "install:dash": "npm install --workspace=frontend",
-    "install:all": "npm install",
-    "start:full": "echo 'Run platforms separately via their docker-compose or start scripts, then npm run dev for the dash'"
+    "build:core": "npm run build -w @omnibox/core",
+    "cloudphone:mock": "npm run dev -w @duoplus/mock-server",
+    "cloudphone:proxy": "npm run dev -w @duoplus/proxy",
+    "cloudphone:web": "npm run dev -w @duoplus/web",
+    "install:all": "npm install"
   }
 }

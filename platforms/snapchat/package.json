@@ -1,0 +1,16 @@
+{
+  "name": "@omnibox/platform-snapchat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Snapchat platform engine — drives the real Snapchat app on DuoPlus cloud phones via the cloud-phone transport, normalized to the PlatformTransformer contract. PILOT.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@omnibox/core": "*",
+    "@omnibox/cloud-phone": "*"
+  },
+  "devDependencies": { "typescript": "^5.5.0" }
+}

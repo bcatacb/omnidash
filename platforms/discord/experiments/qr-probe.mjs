@@ -1,0 +1,45 @@
+import { generateKeyPairSync, privateDecrypt, constants, createHash } from "node:crypto";
+
+const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const encodedPublicKey = publicKey.export({ type: "spki", format: "der" }).toString("base64");
+
+const ws = new WebSocket("wss://remote-auth-gateway.discord.gg/?v=2");
+
+const decrypt = (b64) => privateDecrypt(
+  { key: privateKey, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
+  Buffer.from(b64, "base64")
+);
+const b64url = (buf) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+let hb = null;
+ws.addEventListener("open", () => console.error("[probe] ws open"));
+ws.addEventListener("message", (e) => {
+  const msg = JSON.parse(typeof e.data === "string" ? e.data : Buffer.from(e.data).toString());
+  console.error(`[probe] ← op=${msg.op}`);
+  switch (msg.op) {
+    case "hello":
+      hb = setInterval(() => ws.send(JSON.stringify({ op: "heartbeat" })), msg.heartbeat_interval);
+      ws.send(JSON.stringify({ op: "init", encoded_public_key: encodedPublicKey }));
+      break;
+    case "nonce_proof": {
+      const proof = b64url(createHash("sha256").update(decrypt(msg.encrypted_nonce)).digest());
+      ws.send(JSON.stringify({ op: "nonce_proof", proof }));
+      break;
+    }
+    case "pending_remote_init":
+      console.log("\n=== SUCCESS ===");
+      console.log("fingerprint:", msg.fingerprint);
+      console.log("QR URL:", `https://discord.com/ra/${msg.fingerprint}`);
+      clearInterval(hb);
+      ws.close();
+      break;
+    case "pending_ticket":
+      console.error("[probe] received user payload (would have needed real scan)");
+      break;
+    default:
+      console.error("[probe] unhandled op:", msg.op, JSON.stringify(msg));
+  }
+});
+ws.addEventListener("error", (e) => console.error("[probe] ERROR:", e.message || e));
+ws.addEventListener("close", (e) => { console.error(`[probe] closed code=${e.code} reason=${e.reason}`); process.exit(0); });
+setTimeout(() => { console.error("[probe] timeout"); process.exit(1); }, 15000);

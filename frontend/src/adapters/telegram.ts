@@ -6,6 +6,17 @@ const PLATFORM = 'telegram' as const
 // Telegram backend base (adjust via env for your setup)
 const TELEGRAM_BASE = (import.meta as any).env?.VITE_TELEGRAM_API || 'http://localhost:8000'
 
+// The Telegram backend is multi-user and requires a Bearer token on every request.
+// In a single-operator deployment we bake a long-lived service token (issued for the
+// operator account) via env so the unified dashboard can read live data without a login UI.
+const TELEGRAM_TOKEN = (import.meta as any).env?.VITE_TELEGRAM_TOKEN || ''
+
+// Merge the auth header into any fetch init. No-op when no token is configured.
+function tgAuth(init: RequestInit = {}): RequestInit {
+  if (!TELEGRAM_TOKEN) return init
+  return { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${TELEGRAM_TOKEN}` } }
+}
+
 // Note: For full auth, the Telegram backend uses Bearer tokens.
 // For initial real wiring, you may need to either:
 // - Run without strict auth in dev, or
@@ -68,7 +79,7 @@ export const telegramAdapter: PlatformTransformer = {
 
   async listAccounts() {
     try {
-      const res = await fetch(`${TELEGRAM_BASE}/api/v1/accounts`)
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/accounts`, tgAuth())
       if (!res.ok) throw new Error('backend not reachable')
       const data = await res.json()
       return (data || []).map((a: any): OmniAccount => ({
@@ -80,7 +91,7 @@ export const telegramAdapter: PlatformTransformer = {
         status: a.status || 'connected',
       }))
     } catch (e) {
-      console.error('Telegram listAccounts failed', e)
+      console.warn('[telegram] listAccounts FAILED:', e)
       return []
     }
   },
@@ -89,7 +100,7 @@ export const telegramAdapter: PlatformTransformer = {
     try {
       const params = new URLSearchParams()
       params.set('limit', '200')
-      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/conversations?${params}`)
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/conversations?${params}`, tgAuth())
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
       let items: any[] = data.conversations || []
@@ -106,7 +117,7 @@ export const telegramAdapter: PlatformTransformer = {
 
       return mapped
     } catch (e) {
-      console.error('Telegram listConversations failed', e)
+      console.warn('[telegram] listConversations FAILED:', e)
       return []
     }
   },
@@ -129,13 +140,13 @@ export const telegramAdapter: PlatformTransformer = {
       params.set('chat_id', chatId)
       params.set('limit', String(opts?.limit ?? 100))
 
-      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/thread?${params}`)
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/thread?${params}`, tgAuth())
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
       const items: any[] = data.items || []
       return items.map(item => mapMessage(item, convId))
     } catch (e) {
-      console.error('Telegram getMessages failed', e)
+      console.warn('[telegram] getMessages FAILED:', e)
       return []
     }
   },
@@ -152,11 +163,11 @@ export const telegramAdapter: PlatformTransformer = {
     }
 
     try {
-      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/send`, {
+      const res = await fetch(`${TELEGRAM_BASE}/api/v1/messages/send`, tgAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId, chatId, text: body }),
-      })
+      }))
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
       const item = data.item
@@ -176,11 +187,11 @@ export const telegramAdapter: PlatformTransformer = {
       else if (convId.includes(':')) {
         const p = convId.split(':'); accountId = p[1]||''; chatId = p[2]||p[1]||convId
       }
-      await fetch(`${TELEGRAM_BASE}/api/v1/messages/mark-read`, {
+      await fetch(`${TELEGRAM_BASE}/api/v1/messages/mark-read`, tgAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId, chatId }),
-      })
+      }))
     } catch {}
   },
 

@@ -1,0 +1,11 @@
+{
+  "name": "@duoplus/mock-server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/start.ts",
+    "test": "vitest run"
+  },
+  "dependencies": { "fastify": "^4.28.0" },
+  "devDependencies": { "tsx": "^4.16.0", "typescript": "^5.5.0", "vitest": "^2.0.0" }
+}

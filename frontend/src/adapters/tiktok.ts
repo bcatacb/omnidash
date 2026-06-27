@@ -60,7 +60,7 @@ export const tiktokAdapter: PlatformTransformer = {
         status: a.status || 'connected',
       }))
     } catch (e) {
-      console.error('TikTok listAccounts failed', e)
+      console.warn('[tiktok] listAccounts FAILED:', e)
       return []
     }
   },
@@ -80,7 +80,7 @@ export const tiktokAdapter: PlatformTransformer = {
       }
       return items
     } catch (e) {
-      console.error('TikTok listConversations failed', e)
+      console.warn('[tiktok] listConversations FAILED:', e)
       return []
     }
   },
@@ -93,10 +93,11 @@ export const tiktokAdapter: PlatformTransformer = {
       })
       if (!res.ok) throw new Error('backend')
       const data = await res.json()
-      const items = data.messages || data.items || []
+      // c2 returns a bare array of inserted messages; older shape used {messages}/{items}.
+      const items = Array.isArray(data) ? data : (data.messages || data.items || [])
       return items.map((m: any) => mapTikTokMessage(m, convId))
     } catch (e) {
-      console.error('TikTok getMessages failed', e)
+      console.warn('[tiktok] getMessages FAILED:', e)
       return []
     }
   },

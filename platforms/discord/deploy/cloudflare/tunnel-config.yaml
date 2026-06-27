@@ -1,0 +1,45 @@
+# cloudflared tunnel config for Discord Unibox production VPS.
+#
+# Path on the VPS:  /etc/cloudflared/config.yml
+# Creds file:       /etc/cloudflared/discord-unibox-prod.json
+# Tunnel UUID:      replace <TUNNEL_UUID> below with the value printed by
+#                   `cloudflared tunnel create discord-unibox-prod`.
+#
+# Ingress rules are evaluated top-to-bottom. The last rule MUST be a
+# catch-all (http_status:404 or a service:) or cloudflared refuses to start.
+
+tunnel: 6bd591fe-9a4d-40fe-a14a-c9b3edfa1991
+credentials-file: /etc/cloudflared/discord-unibox-prod.json
+
+# Log to stdout so journalctl picks it up via the systemd unit.
+loglevel: info
+transport-loglevel: warn
+
+# Metrics endpoint for local Prometheus scraping (optional).
+metrics: 127.0.0.1:2000
+
+# Reconnect tuning — defaults are fine for v1.
+retries: 5
+grace-period: 30s
+
+ingress:
+  # ---- API ----
+  - hostname: api.gg.linktree.bond
+    service: http://localhost:8080
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: false
+      httpHostHeader: api.gg.linktree.bond
+
+  # ---- WebSocket (same upstream, /ws path on the api service) ----
+  - hostname: ws.gg.linktree.bond
+    service: http://localhost:8080
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: false
+      httpHostHeader: ws.gg.linktree.bond
+      # Cloudflare auto-upgrades HTTP→WS when the client sends the upgrade
+      # header; no extra flag needed here.
+
+  # ---- Catch-all 404 ----
+  - service: http_status:404

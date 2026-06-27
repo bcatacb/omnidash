@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GG Account Switcher — Options</title>
+  <style>
+    body { font: 13px/1.4 -apple-system, system-ui, sans-serif; padding: 24px; max-width: 480px; color: #ddd; background: #1f1f23; }
+    label { display: block; margin-top: 12px; font-weight: 600; }
+    input[type=text] { width: 100%; padding: 6px 8px; background: #2a2a30; color: #fff; border: 1px solid #3a3a40; border-radius: 4px; }
+    button { margin-top: 12px; padding: 6px 12px; background: #5865F2; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
+    .ok { color: #4ade80; }
+    .err { color: #ef4444; }
+    .muted { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>GG Account Switcher</h1>
+  <p class="muted">This extension switches your Discord browser session between captured accounts on gg.linktree.bond.</p>
+  <label for="origin">gg origin URL</label>
+  <input id="origin" type="text" placeholder="https://gg.linktree.bond">
+  <button id="save">Save</button>
+  <span id="status"></span>
+  <p class="muted" style="margin-top:18px">No tokens are stored by this extension. They're fetched on demand from the URL above using your existing browser session cookie.</p>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

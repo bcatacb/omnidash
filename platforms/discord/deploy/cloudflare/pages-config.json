@@ -1,0 +1,42 @@
+{
+  "project_name": "discord-unibox",
+  "production_branch": "main",
+  "framework_preset": "Vite",
+  "build": {
+    "root_directory": "app",
+    "build_command": "npm run build",
+    "destination_dir": "app/dist",
+    "node_version": "20"
+  },
+  "custom_domains": [
+    "gg.linktree.bond"
+  ],
+  "env": {
+    "production": {
+      "VITE_API_BASE_URL": "https://api.gg.linktree.bond",
+      "VITE_WS_BASE_URL": "wss://ws.gg.linktree.bond/ws",
+      "NODE_VERSION": "20"
+    },
+    "preview": {
+      "VITE_API_BASE_URL": "https://api.gg.linktree.bond",
+      "VITE_WS_BASE_URL": "wss://ws.gg.linktree.bond/ws",
+      "NODE_VERSION": "20"
+    }
+  },
+  "deployment_configs": {
+    "preview": {
+      "compatibility_date": "2026-05-01",
+      "compatibility_flags": []
+    },
+    "production": {
+      "compatibility_date": "2026-05-01",
+      "compatibility_flags": []
+    }
+  },
+  "_notes": [
+    "Project cannot be created via the cloudflare MCP — the GitHub App connection requires a browser auth flow.",
+    "Create manually via Dashboard → Workers & Pages → Create → Pages → Connect to Git, using the values above.",
+    "After first deploy, attach custom domain gg.linktree.bond under Settings → Custom domains.",
+    "The CNAME from dns-records.yaml must already exist before attaching the custom domain or CF will reject it."
+  ]
+}

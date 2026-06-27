@@ -1,0 +1,116 @@
+# Bridge stack for Discord Account Manager.
+#
+# This file launches the SHARED services only:
+#   - nats        : event bus (JetStream)
+#   - postgres    : per-account schemas live in here
+#   - hungryshim  : minimal Matrix C-S + appservice shim that mautrix-discord
+#                   talks to instead of a real Synapse
+#   - orchestrator: HTTP control plane that DYNAMICALLY spawns one
+#                   mautrix-discord container per Discord account
+#
+# Note: there is NO `bridge` service in this compose file. Bridge containers
+# are created on demand by the orchestrator via the Docker socket. Each
+# bridge is a one-off `docker run -d --name bridge-<account_id> ...`
+# launched into the same docker network as this compose project.
+
+networks:
+  bridgenet:
+    name: bridgenet
+    driver: bridge
+
+volumes:
+  pgdata:
+  natsdata:
+  orchdata:
+  bridgecfg:
+
+services:
+  nats:
+    image: nats:2-alpine
+    container_name: bridgestack-nats
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "${NATS_PORT:-4222}:4222"
+      - "${NATS_MONITOR_PORT:-8222}:8222"
+    volumes:
+      - natsdata:/data
+    networks:
+      - bridgenet
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: bridgestack-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bridge}
+      POSTGRES_DB: ${POSTGRES_DB:-bridge}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - bridgenet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bridge}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  hungryshim:
+    build:
+      context: ./hungryshim
+      dockerfile: Dockerfile
+    container_name: bridgestack-hungryshim
+    environment:
+      HUNGRY_LISTEN: ":8008"
+      HUNGRY_DOMAIN: ${HUNGRY_DOMAIN:-bridge.local}
+      HUNGRY_DB_DSN: postgres://${POSTGRES_USER:-bridge}:${POSTGRES_PASSWORD:-bridge}@postgres:5432/${POSTGRES_DB:-bridge}?sslmode=disable
+      # Comma separated token pairs of the form as_token:hs_token, written
+      # by the orchestrator at provision time via a shared volume.
+      HUNGRY_TOKEN_FILE: /etc/hungry/tokens.json
+    ports:
+      - "${HUNGRY_PORT:-8008}:8008"
+    volumes:
+      - bridgecfg:/etc/hungry
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - bridgenet
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: bridgestack-orchestrator
+    environment:
+      ORCH_PORT: "7000"
+      ORCH_DATA_DIR: /data
+      ORCH_BRIDGE_CFG_DIR: /etc/hungry
+      ORCH_BRIDGE_IMAGE: ${ORCH_BRIDGE_IMAGE:-dock.mau.dev/mautrix/discord:latest}
+      ORCH_BRIDGE_NETWORK: bridgenet
+      ORCH_HOMESERVER_URL: http://hungryshim:8008
+      ORCH_HOMESERVER_DOMAIN: ${HUNGRY_DOMAIN:-bridge.local}
+      ORCH_POSTGRES_HOST: postgres
+      ORCH_POSTGRES_PORT: "5432"
+      ORCH_POSTGRES_USER: ${POSTGRES_USER:-bridge}
+      ORCH_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bridge}
+      ORCH_POSTGRES_DB: ${POSTGRES_DB:-bridge}
+      ORCH_NATS_URL: nats://nats:4222
+    ports:
+      - "${ORCH_PORT:-7000}:7000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - orchdata:/data
+      - bridgecfg:/etc/hungry
+    depends_on:
+      postgres:
+        condition: service_healthy
+      hungryshim:
+        condition: service_started
+    networks:
+      - bridgenet
+    restart: unless-stopped

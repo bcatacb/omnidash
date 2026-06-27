@@ -1,0 +1,5 @@
+services:
+  frontend:
+    container_name: tg-messaging-saas-staging-frontend
+  backend:
+    container_name: tg-messaging-saas-staging-backend

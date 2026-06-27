@@ -1,0 +1,192 @@
+# Top-level production compose for the Discord Unibox stack.
+#
+# Run from the repo root on the VPS:
+#   docker compose -f deploy/vps/docker-compose.prod.yml up -d
+#
+# What this file is:
+#   - The single entry point for the prod stack on the VPS.
+#   - Pulls in the existing sub-stacks from app/ and bridge-stack/ via `extends`.
+#   - Adds a shared overlay network `unibox-net` so the api can talk to the
+#     orchestrator, the orchestrator can talk to hungryshim, nats and postgres.
+#
+# What it is NOT:
+#   - Not for local dev — use app/docker-compose.yml directly for that.
+#   - Not for staging — use app/docker-compose.staging.yml for that.
+
+name: discord-unibox-prod
+
+services:
+  # ---------- API / backend (Node + Express + WS) ----------
+  #
+  # NOTE: this is intentionally a fresh service definition rather than
+  # `extends: app/docker-compose.yml`. The app/ compose file is a legacy
+  # Coolify+Traefik staging stack that pulls in external networks
+  # (traefik_runtime, supabase_runtime) which don't exist in prod.
+  # If you need to keep the two in sync, edit BOTH or refactor app/ first.
+  api:
+    image: ${UNIBOX_API_IMAGE:-discord-unibox-api:latest}
+    build:
+      context: ../..
+      dockerfile: app/Dockerfile.backend
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_DATE: ${GIT_DATE:-}
+    container_name: unibox-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NATS_URL=nats://nats:4222
+      - DATABASE_URL=postgres://unibox:${POSTGRES_PASSWORD}@postgres:5432/unibox
+      - ORCHESTRATOR_URL=http://orchestrator:8080
+      - HUNGRYSHIM_URL=http://hungryshim:9090
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY:-}
+      - WEBSHARE_PROXY_URL=${WEBSHARE_PROXY_URL:-}
+      - TOKEN_STORE_DIR=/data/gg-api
+      - BROWSER_FETCH_ENABLED=${BROWSER_FETCH_ENABLED:-1}
+      - BROWSER_HEADLESS=1
+      - TWOCAPTCHA_API_KEY=${TWOCAPTCHA_API_KEY:-}
+      - VPS_PUBLIC_IP=${VPS_PUBLIC_IP:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - token-data:/data/gg-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      orchestrator:
+        condition: service_started
+    networks:
+      - unibox-net
+    # No host port-publish for HTTP — cloudflared reaches the API via the
+    # Docker bridge gateway. Relay ports ARE published so 2captcha workers
+    # can connect in from the internet to tunnel through residential proxies.
+    # Without these, 2captcha solves proxyless → IP mismatch → token revoked.
+    ports:
+      - "4002-4099:4002-4099"
+    labels:
+      - "unibox.role=api"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ---------- Orchestrator (Go, spawns mautrix-discord bridges) ----------
+  orchestrator:
+    build:
+      context: ../../bridge-stack/orchestrator
+    container_name: unibox-orchestrator
+    restart: unless-stopped
+    environment:
+      - NATS_URL=nats://nats:4222
+      - DATABASE_URL=postgres://unibox:${POSTGRES_PASSWORD}@postgres:5432/unibox
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - BRIDGE_TEMPLATE_DIR=/templates
+      - LOG_LEVEL=info
+    volumes:
+      # The orchestrator spawns sibling containers, so it needs the host
+      # docker socket. KEEP READ-ONLY mounts everywhere else.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../bridge-stack/templates:/templates:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    networks:
+      - unibox-net
+    labels:
+      - "unibox.role=orchestrator"
+
+  # ---------- Hungryshim (Go, Discord protocol shim) ----------
+  hungryshim:
+    build:
+      context: ../../bridge-stack/hungryshim
+    container_name: unibox-hungryshim
+    restart: unless-stopped
+    environment:
+      - NATS_URL=nats://nats:4222
+      - LOG_LEVEL=info
+    depends_on:
+      nats:
+        condition: service_started
+    networks:
+      - unibox-net
+    labels:
+      - "unibox.role=hungryshim"
+
+  # ---------- NATS (message bus) ----------
+  nats:
+    image: nats:2.10-alpine
+    container_name: unibox-nats
+    restart: unless-stopped
+    command:
+      - "-js"                       # JetStream on
+      - "-m"
+      - "8222"                      # monitoring port
+    networks:
+      - unibox-net
+    labels:
+      - "unibox.role=nats"
+
+  # ---------- Postgres (state) ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: unibox-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=unibox
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=unibox
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - unibox-net
+    labels:
+      - "unibox.role=postgres"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unibox -d unibox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Internal reverse proxy (optional) ----------
+  # Provides a single internal hostname for cloudflared to target and lets
+  # us split /api vs /ws upgrade handling without leaking implementation
+  # details into the tunnel config. If you keep cloudflared pointing
+  # straight at the api container (recommended for v1) you can disable this
+  # service by commenting it out.
+  nginx:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile.nginx
+    container_name: unibox-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - unibox-net
+    volumes:
+      - ./ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    labels:
+      - "unibox.role=edge"
+
+volumes:
+  postgres-data:
+    name: unibox-postgres-data
+  token-data:
+    name: unibox-token-data
+
+networks:
+  unibox-net:
+    name: unibox-net
+    driver: bridge

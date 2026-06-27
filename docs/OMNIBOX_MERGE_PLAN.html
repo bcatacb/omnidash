@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniBox — Consolidation & Multi-Platform Buildout Plan</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e222e; --line:#2a2f3d;
+    --ink:#e7e9ee; --muted:#9aa3b2; --soft:#c3c9d6;
+    --brand:#7c8cff; --brand2:#a779ff; --green:#3ecf8e; --amber:#f0b429; --red:#ff6b6b; --cyan:#39c2d7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:linear-gradient(180deg,#0c0e14,#0f1117 240px);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px 96px}
+
+  /* hero */
+  header.hero{padding:64px 0 40px;border-bottom:1px solid var(--line);margin-bottom:40px}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--brand);background:rgba(124,140,255,.1);
+          border:1px solid rgba(124,140,255,.25);padding:6px 12px;border-radius:999px}
+  h1{font-size:42px;line-height:1.1;margin:18px 0 10px;letter-spacing:-.02em;
+     background:linear-gradient(90deg,#fff,#b9c0ff 60%,#a779ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--soft);font-size:18px;max-width:760px}
+  .meta{margin-top:20px;display:flex;gap:10px;flex-wrap:wrap}
+  .pill{font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 18px;font-weight:700}
+  section{margin:52px 0}
+  .secnum{color:var(--brand);font-weight:800;margin-right:8px}
+  h3{font-size:20px;margin:0 0 12px;letter-spacing:-.01em}
+  p{color:var(--soft)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}
+  @media(max-width:760px){.g2{grid-template-columns:1fr}}
+
+  .callout{border-left:3px solid var(--brand);background:linear-gradient(90deg,rgba(124,140,255,.09),transparent);
+           border-radius:10px;padding:16px 20px;color:var(--soft)}
+  .callout.amber{border-color:var(--amber);background:linear-gradient(90deg,rgba(240,180,41,.1),transparent)}
+  .callout.green{border-color:var(--green);background:linear-gradient(90deg,rgba(62,207,142,.1),transparent)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;overflow:hidden;border-radius:12px;border:1px solid var(--line)}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel2);color:var(--ink);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  td code,p code,li code{background:#0c0e14;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#cdd3ff}
+
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .b-green{background:rgba(62,207,142,.15);color:var(--green);border:1px solid rgba(62,207,142,.3)}
+  .b-amber{background:rgba(240,180,41,.15);color:var(--amber);border:1px solid rgba(240,180,41,.3)}
+  .b-brand{background:rgba(124,140,255,.15);color:var(--brand);border:1px solid rgba(124,140,255,.3)}
+
+  pre{background:#0a0c11;border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow:auto;
+      font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#cbd2e6}
+
+  /* phases */
+  .phase{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+         padding:18px 22px 18px 64px;margin-bottom:14px}
+  .phase .num{position:absolute;left:16px;top:18px;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+              font-weight:800;font-size:15px;color:#0c0e14;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .phase h4{margin:2px 0 8px;font-size:16px}
+  .phase.pilot{border-color:rgba(57,194,215,.5);box-shadow:0 0 0 1px rgba(57,194,215,.15)}
+  .phase.pilot .num{background:linear-gradient(135deg,var(--cyan),var(--green))}
+  ul.checks{list-style:none;padding:0;margin:6px 0 0}
+  ul.checks li{padding-left:24px;position:relative;color:var(--soft);margin:5px 0;font-size:14px}
+  ul.checks li:before{content:"";position:absolute;left:0;top:7px;width:11px;height:11px;border-radius:3px;border:1.5px solid var(--brand)}
+
+  ol.dec{counter-reset:d;list-style:none;padding:0;margin:0}
+  ol.dec li{counter-increment:d;position:relative;padding:14px 16px 14px 52px;background:var(--panel);border:1px solid var(--line);
+            border-radius:12px;margin-bottom:10px;color:var(--soft)}
+  ol.dec li:before{content:counter(d);position:absolute;left:14px;top:13px;width:26px;height:26px;border-radius:8px;
+            display:grid;place-items:center;font-weight:800;color:var(--brand);background:rgba(124,140,255,.12);border:1px solid rgba(124,140,255,.3)}
+  ol.dec b{color:var(--ink)}
+
+  .foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  a{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="kicker">◆ Master Plan</span>
+    <h1>OmniBox — Full Consolidation &amp; Multi-Platform Buildout</h1>
+    <p class="sub">Collapse every scattered project into one monorepo, with a shared core so any fix scales to all platforms — and a cloud-phone transport (DuoPlus) that unlocks Snapchat, Instagram &amp; Facebook.</p>
+    <div class="meta">
+      <span class="pill">📅 2026-06-27</span>
+      <span class="pill">🗂 6 codebases → 1 repo</span>
+      <span class="pill">🖥 2 servers</span>
+      <span class="pill">📱 DuoPlus cloud phones</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="secnum">01</span> Why we're doing this</h2>
+    <div class="callout">
+      Today the system spans <b>~6 codebases on 2 servers</b>, with duplicate, drifting copies of the same platforms. Every fix has to be delivered to multiple sources and nothing is shared. The target is <b>one repo</b>, a <b>shared core</b> (fix once → every platform benefits), <b>new platforms that only write their own automation</b>, and <b>cloud phones as a first-class transport</b>.
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">02</span> Current footprint we're consolidating</h2>
+    <table>
+      <tr><th>Project</th><th>Where</th><th>What it is</th><th>Plan</th></tr>
+      <tr><td><b>omnibox</b></td><td><code>/data/omnibox</code> (new)</td><td>Unified shell + <i>stale</i> TG/Discord/TikTok folders + <code>db/unified</code></td><td><span class="badge b-brand">Canonical</span></td></tr>
+      <tr><td><b>c2 / TokTik C2</b></td><td><code>/root/C2</code> (old, pm2)</td><td><b>Live</b> TikTok: Node + Playwright + Postgres + own UI</td><td>→ <code>platforms/tiktok</code></td></tr>
+      <tr><td><b>AppellantBot</b></td><td><code>~/AppellantBot</code></td><td>Telethon @SpamBot limit-appeal service</td><td>→ <code>services/appeal-bot</code></td></tr>
+      <tr><td><b>Discord Unibox</b></td><td><code>/opt/discord-unibox</code> (old)</td><td><b>Live</b> 6-container stack (Playwright + Matrix bridge)</td><td>Source only · <span class="badge b-amber">runtime stays</span></td></tr>
+      <tr><td><b>Telegram Portal</b></td><td>old <code>:3000</code> + new <code>:8000</code></td><td>Telegram CRM (reference UX)</td><td>→ <code>platforms/telegram</code></td></tr>
+      <tr><td><b>duoapi</b></td><td><code>~/duoapi</code></td><td>DuoPlus console: proxy + web + mock + shared</td><td>→ <code>transports/cloud-phone</code></td></tr>
+    </table>
+    <p style="margin-top:14px"><b>Infra in place:</b> new Azure box (<code>20.81.133.252</code>) runs the shell, Telegram backend, hermes &amp; the <code>omnidash</code> tunnel; old box (<code>80.208.224.130</code>) runs Discord, c2, the portal frontend &amp; the <code>platforms</code> tunnel. All exposed via Cloudflare tunnels on <code>deadbread.space</code> (<code>app/discord/telegram/tiktok/hermes</code>).</p>
+  </section>
+
+  <section>
+    <h2><span class="secnum">03</span> Target architecture</h2>
+<pre>omnibox/                       <span style="color:#6b7280">← one repo, one deploy origin</span>
+├── frontend/                  unified shell (dashboard + embeds + native views)
+├── packages/
+│   ├── core/                  accounts · sessions · proxies · campaigns ·
+│   │                          warmup · scrape · inbox-sync · device-pool · contracts
+│   └── unified-db/            single Postgres schema + transformer contract
+├── transports/
+│   ├── api/                   Telethon            → Telegram
+│   ├── playwright/            web automation      → Discord assist, TikTok (web)
+│   └── cloud-phone/           DuoPlus (absorbed)  → ADB/Appium + RPA
+├── platforms/
+│   ├── telegram/  discord/  tiktok/               (existing, consolidated)
+│   └── instagram/ facebook/ snapchat/             (new, cloud-phone backed)
+├── services/appeal-bot/       absorbed AppellantBot
+└── deploy/                    one pipeline</pre>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <h3>Transport model</h3>
+        <table>
+          <tr><th>Transport</th><th>Engine</th><th>Platforms</th></tr>
+          <tr><td><code>api</code></td><td>Telethon</td><td>Telegram</td></tr>
+          <tr><td><code>playwright</code></td><td>Headless browser</td><td>Discord, TikTok (web)</td></tr>
+          <tr><td><code>cloud-phone</code></td><td><b>DuoPlus</b> real Android</td><td>Snapchat, Instagram, Facebook</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>The scaling principle</h3>
+        <p>Every platform implements one <code>PlatformTransformer</code> contract → normalized <code>OmniConversation</code>/<code>OmniMessage</code> → unified inbox. The <b>shared core</b> holds accounts, proxies, warmup, scrape &amp; inbox-sync — written once, reused everywhere. New platform = write only its automation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">04</span> The DuoPlus cloud-phone unlock</h2>
+    <p><code>duoapi</code> already built the hard part — a secure proxy (API key server-side, 1 QPS, 429 backoff) over the full DuoPlus API, plus a console UI. It becomes <code>transports/cloud-phone</code>.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Capabilities we rely on</h3>
+        <table>
+          <tr><th>Need</th><th>Mechanism</th></tr>
+          <tr><td>Device lifecycle</td><td><code>cloudPhone/list·powerOn/Off·info</code></td></tr>
+          <tr><td><b>Raw automation</b></td><td><code>openAdb</code> → <code>adb connect</code> → <b>Appium</b></td></tr>
+          <tr><td>Quick shell / screen</td><td><code>cloudPhone/command</code> · <code>DuoPlusDumpUI</code></td></tr>
+          <tr><td><b>Bulk automation</b></td><td>DuoPlus <b>RPA</b> templates (OCR, data extract)</td></tr>
+          <tr><td>App management</td><td><code>app/install·start·stop</code></td></tr>
+          <tr><td>Account onboarding</td><td><code>cloudNumber/smsList</code> (codes)</td></tr>
+          <tr><td>Media push</td><td><code>cloudDisk/pushFiles</code></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Automation strategy — hybrid</h3>
+        <table>
+          <tr><th>Job</th><th>Engine</th></tr>
+          <tr><td>Inbox: read &amp; reply</td><td><b>ADB + Appium</b> (precision, owned in code)</td></tr>
+          <tr><td>Bulk: warmup, post, scroll</td><td><b>DuoPlus RPA</b> (scheduled, at scale)</td></tr>
+        </table>
+        <div class="callout amber" style="margin-top:14px">
+          <b>Prerequisite:</b> add the omnibox automation host IP to the DuoPlus <b>ADB whitelist</b> (max 10 IPs, team-level).
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">05</span> What absorbs cleanly vs. what stays special</h2>
+    <table>
+      <tr><th>Component</th><th>Absorption</th><th>Notes</th></tr>
+      <tr><td>c2 / TikTok</td><td><span class="badge b-green">Full</span></td><td>Small, self-contained; designed as "Phase 1 of a hub." Replace stale fork, keep shim fixes</td></tr>
+      <tr><td>AppellantBot</td><td><span class="badge b-green">Full</span></td><td>Clean service; webhook + control-bot seam preserved</td></tr>
+      <tr><td>duoapi</td><td><span class="badge b-green">Full</span></td><td>Becomes the cloud-phone transport + "Cloud Phones" shell section</td></tr>
+      <tr><td>Instagram / Facebook / Snapchat</td><td><span class="badge b-green">Greenfield</span></td><td>Built native into the structure from day one</td></tr>
+      <tr><td>Telegram</td><td><span class="badge b-green">Consolidate</span></td><td>Backend already on new server; fold portal + backend together</td></tr>
+      <tr><td>Discord Unibox</td><td><span class="badge b-amber">Source only</span></td><td>6-container runtime (Matrix bridge, NATS, Go) stays containerized — too heavy for one process</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="secnum">06</span> Data strategy</h2>
+    <div class="callout">
+      During transition, each platform keeps its own store (Telegram SQLite, c2 Postgres, Discord Postgres-in-container). <code>inbox-sync</code> in the core normalizes everything into the existing <b><code>omnibox_unified</code></b> Postgres — which powers the cross-platform inbox. Full per-platform apps keep their own DBs (embedded in the shell). Consolidate further later, only once stable.
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">07</span> Cloudflare platform layer <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">— cross-cutting foundation</span></h2>
+    <div class="callout">Cloudflare becomes the <b>edge backbone + AI brain</b> the whole system runs on. It <b>wraps</b> the automation runtimes — it does not replace them.</div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <h3>🧱 Backbone — adopt broadly</h3>
+        <table>
+          <tr><th>Service</th><th>Role</th></tr>
+          <tr><td><b>Access</b></td><td>One SSO gate for every dashboard (shell, hermes, discord, tiktok)</td></tr>
+          <tr><td><b>R2</b></td><td>All object storage, zero egress: media · backups · sessions · screenshots · logs</td></tr>
+          <tr><td><b>KV</b></td><td>Config · flags · per-account cursors · rate counters · cache</td></tr>
+          <tr><td><b>Queues</b></td><td>Job spine — sends · warmup · scrape · RPA triggers</td></tr>
+          <tr><td><b>Durable Objects</b></td><td>Per-account/device coordinators · real-time state · ws fan-out</td></tr>
+          <tr><td><b>Hyperdrive</b></td><td>Pools/accelerates existing Postgres for edge code</td></tr>
+          <tr><td><b>Workers</b></td><td>Edge API gateway + webhooks (duoapi proxy → Worker)</td></tr>
+          <tr><td><b>Pages</b></td><td>Host the shell frontend at the edge</td></tr>
+        </table>
+      </div>
+      <div class="card" style="border-color:rgba(167,121,255,.45);box-shadow:0 0 0 1px rgba(167,121,255,.12)">
+        <h3>🎆 The brain — the fireworks</h3>
+        <table>
+          <tr><th>Service</th><th>Unlocks</th></tr>
+          <tr><td><b>Workers AI</b></td><td>Edge LLMs: draft replies · classify · summarize · <b>translate</b> · lead-score — across the unified inbox</td></tr>
+          <tr><td><b>Vectorize</b></td><td>RAG / semantic search over all conversations → context-aware replies</td></tr>
+          <tr><td><b>AI Gateway</b></td><td>Cache · cost-control · rate-limit · observe any LLM (incl. external)</td></tr>
+        </table>
+        <p style="margin-top:14px">= an AI that reads every platform's inbox and drafts/sends on-brand replies — the force multiplier on top of everything.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>🧩 Supporting / optional</h3>
+      <p style="margin:0"><b>Images</b> (optimize/store) · <b>Stream</b> (video host/transcode for TikTok/Snap) · <b>Email Routing</b> (inbound → webhook) · <b>Turnstile</b> (protect your endpoints) · <b>Browser Rendering</b> (stateless scrapes — niche, not warmed fleets) · <b>Load Balancing / WAF</b> (HA + edge protection).</p>
+    </div>
+    <div class="callout amber" style="margin-top:16px">
+      <b>Runtime boundary:</b> heavy runtimes — Playwright, Appium-over-ADB, Telethon, the Discord container stack, c2 — <b>stay on the VMs &amp; cloud phones.</b> Cloudflare = brain + storage + orchestration + auth + AI; the VMs/phones = the muscle; Workers are the glue. (D1 = small edge data only, not the big Postgres stores.)
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Woven through the phases</h3>
+      <ul class="checks">
+        <li><b>Phase 0:</b> R2 backups · Access in front of all dashboards</li>
+        <li><b>Phase 1:</b> Workers as API/duoapi gateway · Pages for the shell</li>
+        <li><b>Phase 2:</b> Queues + Durable Objects become the core's job/coordination spine</li>
+        <li><b>Phase 3+:</b> R2 for screenshots/media · KV for cursors</li>
+        <li><b>Phase 4+ (Snapchat on):</b> Workers AI + Vectorize + AI Gateway → AI triage &amp; auto-reply across the unified inbox</li>
+      </ul>
+      <div class="callout" style="margin-top:14px"><b>Assumption to confirm:</b> Workers <b>Paid</b> plan (required for Durable Objects, Queues, Workers AI quotas).</div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">08</span> The phased merge</h2>
+    <div class="callout green" style="margin-bottom:18px">
+      <b>Principle:</b> absorb source first (zero runtime disruption) → cut over runtime last → back up before every cutover. Live systems keep running throughout.
+    </div>
+
+    <div class="phase"><div class="num">0</div><h4>Foundation &amp; safety</h4>
+      <ul class="checks"><li>Back up all live systems (c2 DB, Discord volume, Telegram SQLite + sessions, configs)</li><li>Monorepo workspace tooling + CI</li><li>Scaffold <code>packages/core</code>, <code>unified-db</code>, <code>transports/</code></li><li>Resolve open decisions (§09)</li></ul></div>
+
+    <div class="phase"><div class="num">1</div><h4>Absorb clean sources <span class="badge b-brand">no runtime change</span></h4>
+      <ul class="checks"><li><b>c2 → platforms/tiktok</b> (replace stale fork; keep <code>/root/C2</code> live until Phase 6)</li><li><b>AppellantBot → services/appeal-bot</b></li><li><b>duoapi → transports/cloud-phone</b> + "Cloud Phones" shell section</li><li>Discord source → <code>platforms/discord</code> · Telegram consolidate</li></ul></div>
+
+    <div class="phase"><div class="num">2</div><h4>Extract the shared core</h4>
+      <ul class="checks"><li>Move accounts · proxies · campaigns · warmup · scrape · inbox-sync into <code>packages/core</code></li><li>Refactor Telegram + TikTok onto core (proves "fix once")</li><li>Define the device-pool abstraction (device ↔ account ↔ proxy ↔ number)</li></ul></div>
+
+    <div class="phase"><div class="num">3</div><h4>Harden the cloud-phone transport</h4>
+      <ul class="checks"><li>Whitelist omnibox host IP in DuoPlus ADB</li><li>Appium-over-openADB harness (connect · dump UI · act)</li><li>RPA trigger wrapper · cloudNumber onboarding · media push</li></ul></div>
+
+    <div class="phase pilot"><div class="num">4</div><h4>🎯 Snapchat pilot — validates the whole pipeline</h4>
+      <ul class="checks"><li>Engine: install/launch → open chats → dump UI → parse → normalize → reply via Appium</li><li>Surface in unified inbox + shell; embed duoapi console for device ops</li><li>Smoke-test on 1–2 devices before fleet</li></ul></div>
+
+    <div class="phase"><div class="num">5</div><h4>Instagram + Facebook</h4>
+      <ul class="checks"><li>Reuse cloud-phone transport; implement per-platform selectors/flows (engine, not infra)</li></ul></div>
+
+    <div class="phase"><div class="num">6</div><h4>Runtime consolidation &amp; deploy</h4>
+      <ul class="checks"><li>Single deploy from omnibox; cut TikTok off <code>/root/C2</code>; retire stale copies</li><li>Discord stays containerized but deployed from monorepo source</li></ul></div>
+
+    <div class="phase"><div class="num">7</div><h4>Unified, cross-platform features</h4>
+      <ul class="checks"><li>Native cross-platform unified inbox</li><li>Cross-platform campaigns/warmup driven from the core</li></ul></div>
+  </section>
+
+  <section>
+    <h2><span class="secnum">09</span> Top risks → mitigations</h2>
+    <table>
+      <tr><th>Risk</th><th>Mitigation</th></tr>
+      <tr><td>Disrupting live systems</td><td>Absorb source first; cut runtime last; back up before each cutover</td></tr>
+      <tr><td>DuoPlus ADB whitelist cap (10 IPs)</td><td>Run automation from 1–2 stable hosts only</td></tr>
+      <tr><td>DuoPlus 1 QPS limit</td><td>Serialize via the existing proxy (already implemented)</td></tr>
+      <tr><td>Account bans / anti-bot</td><td>Per-device proxies, warmup cadence; Snapchat pilot doubles as feasibility test</td></tr>
+      <tr><td>Two divergent c2 codebases</td><td>Phase 1 makes omnibox canonical; delete the stale fork</td></tr>
+      <tr><td>Discord operator token expiry (~2027-06-26)</td><td>Rotation reminder already flagged</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="secnum">10</span> Decisions I need from you</h2>
+    <ol class="dec">
+      <li><b>Monorepo tooling</b> — npm workspaces (simplest) vs pnpm vs Nx/Turborepo (caching, heavier)?</li>
+      <li><b>Database</b> — keep per-platform stores + sync into unified (recommended) vs. push to one DB sooner?</li>
+      <li><b>Hosting</b> — consolidate everything onto the new Azure box vs. keep the heavy Discord stack on the old server?</li>
+      <li><b>TikTok transport</b> — keep web/c2, or also run TikTok on cloud phones (mobile) for better anti-detection?</li>
+      <li><b>Pilot</b> — confirm <b>Snapchat first</b> (recommended: no other viable path)?</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="secnum">11</span> Recommended first move</h2>
+    <div class="callout green">
+      Start with <b>Phase 0</b> + the low-risk, high-leverage start of <b>Phase 1</b>: absorb <code>duoapi → transports/cloud-phone</code> and diff live <code>/root/C2</code> against the stale <code>TikTok/</code> fork so we see exactly what TikTok absorption pulls in — then harden the cloud-phone transport and run the Snapchat pilot.
+    </div>
+  </section>
+
+  <div class="foot">
+    OmniBox consolidation plan · generated for review · source of truth: <code>omnibox/docs/OMNIBOX_MERGE_PLAN.md</code>
+  </div>
+
+</div>
+</body>
+</html>

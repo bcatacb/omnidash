@@ -1,0 +1,54 @@
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-tg-saas-frontend}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTP_ROUTER:-tg-ui-http}.rule=Host(`${APP_HOST:-droply.click}`) || Host(`www.${APP_HOST:-droply.click}`)"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTP_ROUTER:-tg-ui-http}.entrypoints=http"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTP_ROUTER:-tg-ui-http}.priority=1"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTP_ROUTER:-tg-ui-http}.service=${TRAEFIK_UI_SERVICE:-tg-ui-svc}"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.rule=Host(`${APP_HOST:-droply.click}`) || Host(`www.${APP_HOST:-droply.click}`)"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.entrypoints=https"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.priority=1"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.service=${TRAEFIK_UI_SERVICE:-tg-ui-svc}"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.tls=true"
+      - "traefik.http.routers.${TRAEFIK_UI_HTTPS_ROUTER:-tg-ui-https}.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.${TRAEFIK_UI_SERVICE:-tg-ui-svc}.loadbalancer.server.port=5173"
+      - "traefik.docker.network=${TRAEFIK_DOCKER_NETWORK:-coolify}"
+    networks:
+      - traefik_runtime
+
+  backend:
+    image: ${BACKEND_IMAGE:-tg-saas-backend}
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL:-http://supabase-kong:8000}
+      - SUPABASE_KEY=${SUPABASE_SERVICE_KEY}
+      - STAGING_DISABLE_AUTOMATION=${STAGING_DISABLE_AUTOMATION:-}
+      - ENABLE_CAMPAIGN_SEND_TICK=${ENABLE_CAMPAIGN_SEND_TICK:-}
+      - ENABLE_CAMPAIGN_AUTO_IMPORT_TICK=${ENABLE_CAMPAIGN_AUTO_IMPORT_TICK:-}
+      - STAGING_DISABLE_AUTOMATION=${STAGING_DISABLE_AUTOMATION:-false}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${TRAEFIK_API_HTTP_ROUTER:-tg-api-http}.rule=(Host(`${APP_HOST:-droply.click}`) || Host(`www.${APP_HOST:-droply.click}`)) && (PathPrefix(`/api`) || PathPrefix(`/ws`))"
+      - "traefik.http.routers.${TRAEFIK_API_HTTP_ROUTER:-tg-api-http}.entrypoints=http"
+      - "traefik.http.routers.${TRAEFIK_API_HTTP_ROUTER:-tg-api-http}.priority=100"
+      - "traefik.http.routers.${TRAEFIK_API_HTTP_ROUTER:-tg-api-http}.service=${TRAEFIK_API_SERVICE:-tg-api-svc}"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.rule=(Host(`${APP_HOST:-droply.click}`) || Host(`www.${APP_HOST:-droply.click}`)) && (PathPrefix(`/api`) || PathPrefix(`/ws`))"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.entrypoints=https"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.priority=100"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.service=${TRAEFIK_API_SERVICE:-tg-api-svc}"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.tls=true"
+      - "traefik.http.routers.${TRAEFIK_API_HTTPS_ROUTER:-tg-api-https}.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.${TRAEFIK_API_SERVICE:-tg-api-svc}.loadbalancer.server.port=4000"
+      - "traefik.docker.network=${TRAEFIK_DOCKER_NETWORK:-coolify}"
+    networks:
+      - traefik_runtime
+      - supabase_runtime
+
+networks:
+  traefik_runtime:
+    external: true
+    name: ${TRAEFIK_DOCKER_NETWORK:-coolify}
+  supabase_runtime:
+    external: true
+    name: ${SUPABASE_DOCKER_NETWORK:-supabase_default}

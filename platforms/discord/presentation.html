@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord Outreach — How It Works</title>
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { font-family: 'Inter', system-ui, sans-serif; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .grain {
+      background:
+        radial-gradient(at 20% 0%, rgba(88,101,242,0.18) 0%, transparent 50%),
+        radial-gradient(at 80% 100%, rgba(16,185,129,0.12) 0%, transparent 50%),
+        #0a0a0a;
+    }
+    .pill { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .6rem; border-radius: 999px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .step-num {
+      width: 2.5rem; height: 2.5rem; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.1rem;
+      background: linear-gradient(135deg, #5865F2, #4752C4);
+      color: white;
+    }
+    .arrow { font-size: 1.5rem; color: #6b7280; }
+    .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 1rem; }
+    .card-warn { background: rgba(244,63,94,0.08); border: 1px solid rgba(244,63,94,0.25); border-radius: 1rem; }
+    .card-good { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 1rem; }
+    .h2-glow { text-shadow: 0 0 30px rgba(88,101,242,0.3); }
+    .check { color: #10b981; }
+    .cross { color: #f43f5e; }
+    section { scroll-margin-top: 2rem; }
+  </style>
+</head>
+<body class="grain text-white antialiased">
+
+<!-- ───────────────────────── COVER ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+  <div class="pill bg-indigo-500/20 text-indigo-300 mb-6">Plain-English Walkthrough</div>
+  <h1 class="text-5xl md:text-7xl font-bold tracking-tight h2-glow leading-tight">
+    Discord Outreach,<br/>without the bans.
+  </h1>
+  <p class="mt-6 max-w-xl text-lg text-gray-300">
+    How we send thousands of cold DMs across many Discord accounts —
+    by working <em class="text-emerald-300 not-italic">with</em> Discord's rules, not against them.
+  </p>
+  <div class="mt-12 text-gray-500 text-sm animate-pulse">↓ Scroll to learn how</div>
+</section>
+
+<!-- ───────────────────────── THE PROBLEM ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-5xl mx-auto">
+  <div class="pill bg-rose-500/20 text-rose-300 mb-4">Chapter 1 · The Problem</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-center">Discord hates cold DMs</h2>
+  <p class="mt-4 text-lg text-gray-400 max-w-2xl text-center">
+    If you try to message strangers in bulk, Discord puts up a wall and starts
+    banning accounts. They've spent years killing every shortcut.
+  </p>
+
+  <div class="mt-12 grid md:grid-cols-3 gap-4 w-full">
+    <div class="card-warn p-6">
+      <div class="text-3xl">🤖</div>
+      <h3 class="mt-3 font-semibold">Bot detection</h3>
+      <p class="mt-2 text-sm text-gray-300">Captcha challenges pop up the moment Discord smells automation.</p>
+    </div>
+    <div class="card-warn p-6">
+      <div class="text-3xl">⛔</div>
+      <h3 class="mt-3 font-semibold">Cold-DM block</h3>
+      <p class="mt-2 text-sm text-gray-300">If you haven't talked to someone before, the API just refuses.</p>
+    </div>
+    <div class="card-warn p-6">
+      <div class="text-3xl">🔥</div>
+      <h3 class="mt-3 font-semibold">Burn on solve</h3>
+      <p class="mt-2 text-sm text-gray-300">Solving a captcha is often the signal that gets the account flagged.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── THE VISION ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-5xl mx-auto">
+  <div class="pill bg-indigo-500/20 text-indigo-300 mb-4">Chapter 2 · What we're building</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-center">One dashboard. Many accounts. Real outreach.</h2>
+  <p class="mt-4 text-lg text-gray-400 max-w-2xl text-center">
+    Add as many Discord accounts as you want. Build lead lists from any server.
+    Run cold-outreach campaigns. Reply to everyone from one inbox.
+  </p>
+
+  <div class="mt-12 grid md:grid-cols-3 gap-4 w-full">
+    <div class="card p-6">
+      <div class="text-3xl">👤</div>
+      <h3 class="mt-3 font-semibold">Accounts</h3>
+      <p class="mt-2 text-sm text-gray-400">Add Discord accounts via QR code. Tokens stored encrypted. Status live.</p>
+    </div>
+    <div class="card p-6">
+      <div class="text-3xl">📣</div>
+      <h3 class="mt-3 font-semibold">Campaigns</h3>
+      <p class="mt-2 text-sm text-gray-400">Pick accounts, scrape leads from servers, write templates, set rate limits.</p>
+    </div>
+    <div class="card p-6">
+      <div class="text-3xl">📥</div>
+      <h3 class="mt-3 font-semibold">Unibox</h3>
+      <p class="mt-2 text-sm text-gray-400">Every conversation from every account in one place. Reply, archive, done.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── THE TRICK ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-5xl mx-auto py-16">
+  <div class="pill bg-emerald-500/20 text-emerald-300 mb-4">Chapter 3 · The clever bit</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-center">We split the job in half</h2>
+  <p class="mt-4 text-lg text-gray-400 max-w-3xl text-center">
+    The robot does the part Discord allows. <em class="text-white not-italic">You</em> do the part Discord
+    can't tell apart from a normal user.
+  </p>
+
+  <div class="mt-12 grid md:grid-cols-2 gap-6 w-full">
+    <div class="card p-6">
+      <div class="pill bg-indigo-500/20 text-indigo-300 mb-3">Robot's job</div>
+      <h3 class="text-xl font-semibold">Set the stage</h3>
+      <ul class="mt-4 space-y-3 text-gray-300 text-sm">
+        <li class="flex gap-3"><span class="check">✓</span> Open empty DM channels with every lead</li>
+        <li class="flex gap-3"><span class="check">✓</span> Watch your account in real-time</li>
+        <li class="flex gap-3"><span class="check">✓</span> Send the templated follow-ups</li>
+        <li class="flex gap-3"><span class="check">✓</span> Space messages with cooldowns</li>
+      </ul>
+      <p class="mt-4 text-xs text-gray-500">All of this is allowed — Discord doesn't block it.</p>
+    </div>
+    <div class="card p-6">
+      <div class="pill bg-emerald-500/20 text-emerald-300 mb-3">Your job</div>
+      <h3 class="text-xl font-semibold">Break the ice</h3>
+      <ul class="mt-4 space-y-3 text-gray-300 text-sm">
+        <li class="flex gap-3"><span class="check">✓</span> Open Discord (your normal app)</li>
+        <li class="flex gap-3"><span class="check">✓</span> Click each new empty DM in your sidebar</li>
+        <li class="flex gap-3"><span class="check">✓</span> Hit the native <strong>Wave to X</strong> button</li>
+        <li class="flex gap-3"><span class="check">✓</span> Move on. We do the rest.</li>
+      </ul>
+      <p class="mt-4 text-xs text-gray-500">Discord sees a human clicking — exactly what they want.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── THE FLOW ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-4xl mx-auto py-16">
+  <div class="pill bg-indigo-500/20 text-indigo-300 mb-4">Chapter 4 · A campaign, end to end</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-center">From lead list to first reply</h2>
+
+  <div class="mt-12 w-full space-y-6">
+    <div class="card p-6 flex items-start gap-5">
+      <div class="step-num shrink-0">1</div>
+      <div>
+        <h3 class="font-semibold text-lg">Build your campaign</h3>
+        <p class="mt-1 text-sm text-gray-400">
+          Pick which Discord accounts will send. Choose servers to scrape members from. Write
+          your message template. Set how many sends per hour and per day.
+        </p>
+      </div>
+    </div>
+
+    <div class="card p-6 flex items-start gap-5">
+      <div class="step-num shrink-0">2</div>
+      <div>
+        <h3 class="font-semibold text-lg">Click "Prepare DM channels"</h3>
+        <p class="mt-1 text-sm text-gray-400">
+          We silently create empty DMs with every cold lead on Discord's side.
+          No message yet — just an empty conversation. Discord allows this freely (no captcha).
+        </p>
+        <div class="mt-3 text-xs bg-indigo-500/10 border border-indigo-500/30 rounded-lg px-3 py-2 text-indigo-200 inline-block">
+          ⚡ Takes seconds, works for any number of leads
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-6 flex items-start gap-5">
+      <div class="step-num shrink-0">3</div>
+      <div>
+        <h3 class="font-semibold text-lg">Open your real Discord</h3>
+        <p class="mt-1 text-sm text-gray-400">
+          Switch to the account we just used. All the new empty DMs are sitting in your
+          sidebar. Click each one and hit the <strong class="text-white">Wave to X</strong> button.
+          That's the green light Discord shows for empty conversations.
+        </p>
+      </div>
+    </div>
+
+    <div class="card-good p-6 flex items-start gap-5">
+      <div class="step-num shrink-0 !bg-emerald-500">4</div>
+      <div>
+        <h3 class="font-semibold text-lg">We detect each wave instantly</h3>
+        <p class="mt-1 text-sm text-gray-300">
+          As you wave, your rows turn <span class="text-emerald-300 font-semibold">green</span>
+          in our board — usually within 2-3 seconds. We're listening to Discord live, the same way
+          their own app does.
+        </p>
+      </div>
+    </div>
+
+    <div class="card-good p-6 flex items-start gap-5">
+      <div class="step-num shrink-0 !bg-emerald-500">5</div>
+      <div>
+        <h3 class="font-semibold text-lg">Hit Start campaign</h3>
+        <p class="mt-1 text-sm text-gray-300">
+          The button enables once everything's green. The engine sends your real templated
+          message through every warm DM, with cooldown spacing between sends. Discord doesn't
+          captcha-wall messages in channels that already have history — so it flows cleanly.
+        </p>
+      </div>
+    </div>
+
+    <div class="card p-6 flex items-start gap-5">
+      <div class="step-num shrink-0">6</div>
+      <div>
+        <h3 class="font-semibold text-lg">Replies land in the Unibox</h3>
+        <p class="mt-1 text-sm text-gray-400">
+          Every response — from every account, every conversation — shows up in one inbox.
+          Reply, archive, mark read. Done.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── WHAT WE TRIED ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-5xl mx-auto py-16">
+  <div class="pill bg-rose-500/20 text-rose-300 mb-4">Chapter 5 · The graveyard</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight text-center">What we tried first (and why it failed)</h2>
+  <p class="mt-4 text-lg text-gray-400 max-w-2xl text-center">
+    We spent a lot of versions chasing fully-automated cold DMs. Every clever path got beaten.
+  </p>
+
+  <div class="mt-12 w-full space-y-3">
+    <div class="card-warn p-5 flex items-start gap-5">
+      <div class="text-3xl shrink-0">🧩</div>
+      <div class="flex-1">
+        <h3 class="font-semibold">Captcha-solving services <span class="text-xs text-rose-300 font-normal">(2Captcha, CapSolver, AntiCaptcha)</span></h3>
+        <p class="mt-1 text-sm text-gray-300">
+          We paid services to solve captchas for us. They solved on a worker's phone, sent us
+          the token, and we played it back. Discord rejected the playback because its captchas
+          are bound to the specific device that originated the request.
+        </p>
+        <p class="mt-1 text-xs text-rose-300">Result: ❌ doesn't transfer between devices</p>
+      </div>
+    </div>
+
+    <div class="card-warn p-5 flex items-start gap-5">
+      <div class="text-3xl shrink-0">🎭</div>
+      <div class="flex-1">
+        <h3 class="font-semibold">Faking a real browser's fingerprint</h3>
+        <p class="mt-1 text-sm text-gray-300">
+          We made our backend's network calls look identical to Chrome's, down to the
+          encryption handshake. Discord's anti-fraud uses signals deeper than the network
+          layer, so it still flagged us.
+        </p>
+        <p class="mt-1 text-xs text-rose-300">Result: ❌ Discord sees through it</p>
+      </div>
+    </div>
+
+    <div class="card-warn p-5 flex items-start gap-5">
+      <div class="text-3xl shrink-0">🤖</div>
+      <div class="flex-1">
+        <h3 class="font-semibold">A robot driving a real browser</h3>
+        <p class="mt-1 text-sm text-gray-300">
+          We ran an actual Chrome browser on the server, logged in as each account, and tried
+          to drive Discord's web UI like a robot. But Discord's site simply refuses to render
+          an empty DM page for a stranger — so the bot couldn't find anything to click.
+        </p>
+        <p class="mt-1 text-xs text-rose-300">Result: ❌ Discord's UI gates the cold-DM page</p>
+      </div>
+    </div>
+
+    <div class="card-warn p-5 flex items-start gap-5">
+      <div class="text-3xl shrink-0">👁️</div>
+      <div class="flex-1">
+        <h3 class="font-semibold">Solving captchas from inside our app</h3>
+        <p class="mt-1 text-sm text-gray-300">
+          We even built a live remote-control window so you could solve captchas in our web app.
+          Cool tech — but we learned that on an already-flagged account, <em class="text-white not-italic">solving</em>
+          the captcha is the signal Discord uses to revoke the session entirely.
+        </p>
+        <p class="mt-1 text-xs text-rose-300">Result: ❌ solving accelerates the ban</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── THE LESSON ───────────────────────── -->
+<section class="min-h-screen flex flex-col items-center justify-center px-6 max-w-3xl mx-auto py-16 text-center">
+  <div class="pill bg-emerald-500/20 text-emerald-300 mb-4">Chapter 6 · Why this version wins</div>
+  <h2 class="text-4xl md:text-5xl font-bold tracking-tight">
+    The trick is to never give Discord<br/>a reason to suspect you.
+  </h2>
+  <p class="mt-6 text-lg text-gray-300">
+    Every action in this workflow is either a benign API call Discord allows freely, or an
+    organic human click in their own app. There's nothing for their fraud model to catch —
+    because nothing looks like a bot.
+  </p>
+
+  <div class="mt-12 grid md:grid-cols-3 gap-4 w-full">
+    <div class="card-good p-6">
+      <div class="text-3xl">✅</div>
+      <h3 class="mt-3 font-semibold">Reliable</h3>
+      <p class="mt-2 text-sm text-gray-300">No captcha race, no fingerprint arms race. Just works.</p>
+    </div>
+    <div class="card-good p-6">
+      <div class="text-3xl">🔒</div>
+      <h3 class="mt-3 font-semibold">Account-safe</h3>
+      <p class="mt-2 text-sm text-gray-300">Each account looks like a human. Bans become rare.</p>
+    </div>
+    <div class="card-good p-6">
+      <div class="text-3xl">⚡</div>
+      <h3 class="mt-3 font-semibold">Scales</h3>
+      <p class="mt-2 text-sm text-gray-300">5 accounts or 50 — same workflow, same uptime.</p>
+    </div>
+  </div>
+
+  <div class="mt-16 text-gray-500 text-sm">
+    Built at gg.linktree.bond · v0.31
+  </div>
+</section>
+
+</body>
+</html>

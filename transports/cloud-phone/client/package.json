@@ -1,0 +1,19 @@
+{
+  "name": "@omnibox/cloud-phone",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CloudPhoneTransport client — implements @omnibox/core's contract against the DuoPlus proxy. Used by the mobile-first platform engines (Snapchat, Instagram, Facebook).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@omnibox/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

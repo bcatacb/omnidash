@@ -1,0 +1,13 @@
+{
+  "name": "duoplus-console",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["shared", "mock-server", "proxy", "web"],
+  "scripts": {
+    "build:shared": "npm run build -w shared",
+    "dev:mock": "npm run dev -w mock-server",
+    "dev:proxy": "npm run dev -w proxy",
+    "dev:web": "npm run dev -w web",
+    "test": "npm run test -w shared && npm run test -w mock-server && npm run test -w proxy && npm run test -w web"
+  }
+}

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discord-language theme — preview</title>
+
+  <!-- Inter Variable from rsms.me (no build step needed) -->
+  <link rel="preconnect" href="https://rsms.me/" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+
+  <!-- Design tokens -->
+  <link rel="stylesheet" href="../tokens.css" />
+
+  <style>
+    /* ---------- preview-only layout ---------- */
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 72px 240px 1fr;
+      height: 100vh;
+    }
+
+    /* server gutter */
+    .gutter {
+      background: var(--bg-tertiary);
+      padding: 12px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .server-pill {
+      width: 48px; height: 48px;
+      border-radius: 24px;
+      background: var(--bg-primary);
+      color: var(--text-normal);
+      display: grid; place-items: center;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-radius var(--motion-hover) var(--ease-out),
+                  background var(--motion-hover) var(--ease-out);
+    }
+    .server-pill:hover,
+    .server-pill.active { border-radius: 16px; background: var(--brand); color: #fff; }
+    .gutter hr {
+      width: 32px; border: 0; border-top: 2px solid var(--bg-secondary); margin: 4px 0;
+    }
+
+    /* channel list */
+    .channels {
+      background: var(--bg-secondary);
+      padding: 12px 8px;
+      overflow-y: auto;
+    }
+    .channels h2 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--text-muted);
+      margin: 12px 8px 4px;
+    }
+    .channel {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 8px;
+      border-radius: var(--radius-chip);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background var(--motion-hover) var(--ease-out),
+                  color var(--motion-hover) var(--ease-out);
+    }
+    .channel:hover     { background: var(--bg-message-hover); color: var(--text-normal); }
+    .channel.active    { background: var(--bg-message-hover); color: var(--text-normal); }
+    .channel .hash     { color: var(--text-muted); }
+
+    /* main panel */
+    .main {
+      background: var(--bg-primary);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .topbar {
+      height: 48px;
+      border-bottom: 1px solid var(--bg-tertiary);
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px;
+      color: var(--text-normal);
+      font-weight: 600;
+    }
+    .content { padding: 24px; display: grid; gap: 24px; }
+
+    .card {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-card);
+      padding: 20px;
+    }
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    h1 { font-size: 28px; font-weight: 700; color: var(--text-normal); margin: 0; }
+    h2 { font-size: 20px; font-weight: 600; color: var(--text-normal); margin: 0; }
+    p  { color: var(--text-normal); line-height: 1.5; margin: 0; }
+    .muted { color: var(--text-muted); }
+    a  { color: var(--text-link); }
+
+    /* buttons */
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 36px; padding: 0 16px;
+      border-radius: var(--radius-card);
+      font-weight: 500; font-size: 14px;
+      border: 0; cursor: pointer;
+      font-family: inherit;
+      transition: background var(--motion-hover) var(--ease-out),
+                  color      var(--motion-hover) var(--ease-out),
+                  filter     var(--motion-hover) var(--ease-out);
+    }
+    .btn:active { transition-duration: var(--motion-press); }
+    .btn--primary   { background: var(--brand);        color: #fff; }
+    .btn--primary:hover   { background: var(--brand-hover); }
+    .btn--secondary { background: var(--bg-tertiary);  color: var(--text-normal); }
+    .btn--secondary:hover { background: var(--bg-message-hover); }
+    .btn--danger    { background: var(--red);          color: #fff; }
+    .btn--danger:hover    { filter: brightness(1.1); }
+    .btn--ghost     { background: transparent;         color: var(--text-muted); }
+    .btn--ghost:hover     { background: var(--bg-message-hover); color: var(--text-normal); }
+
+    /* input */
+    .input {
+      width: 100%; max-width: 360px;
+      background: var(--bg-tertiary);
+      color: var(--text-normal);
+      border: 1px solid transparent;
+      border-radius: var(--radius-card);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color var(--motion-hover) var(--ease-out);
+    }
+    .input::placeholder { color: var(--text-muted); }
+    .input:focus { outline: none; border-color: var(--brand); }
+
+    /* tabs */
+    .tabs { border-bottom: 1px solid var(--bg-tertiary); display: flex; gap: 4px; }
+    .tab {
+      padding: 10px 12px;
+      font-size: 14px; font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      cursor: pointer;
+      transition: color var(--motion-hover) var(--ease-out),
+                  border-color var(--motion-hover) var(--ease-out);
+    }
+    .tab:hover   { color: var(--text-normal); }
+    .tab.active  { color: var(--text-normal); border-bottom-color: var(--brand); }
+
+    /* dialog mockup */
+    .dialog-mock {
+      background: var(--bg-floating);
+      border-radius: var(--radius-modal);
+      padding: 24px;
+      max-width: 440px;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+    }
+    .dialog-mock h2 { margin-bottom: 8px; }
+    .dialog-mock .actions { margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* toast */
+    .toast {
+      background: var(--bg-floating);
+      border-left: 4px solid var(--green);
+      border-radius: var(--radius-card);
+      padding: 12px 16px;
+      max-width: 380px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .toast.warning { border-left-color: var(--yellow); }
+    .toast.danger  { border-left-color: var(--red); }
+    .toast strong  { display: block; margin-bottom: 4px; }
+
+    /* status dots */
+    .status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+    .status.online  { background: var(--green); }
+    .status.idle    { background: var(--yellow); }
+    .status.dnd     { background: var(--red); }
+
+    /* swatches */
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+    .swatch {
+      border-radius: var(--radius-chip);
+      padding: 12px;
+      font-size: 12px;
+      color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .swatch code { display: block; opacity: 0.9; margin-top: 4px; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- gutter -->
+    <aside class="gutter" aria-label="Servers">
+      <div class="server-pill active">DM</div>
+      <hr />
+      <div class="server-pill">A</div>
+      <div class="server-pill">B</div>
+      <div class="server-pill">C</div>
+    </aside>
+
+    <!-- channel list -->
+    <aside class="channels" aria-label="Channels">
+      <h2>Text channels</h2>
+      <div class="channel"><span class="hash">#</span> welcome</div>
+      <div class="channel active"><span class="hash">#</span> general</div>
+      <div class="channel"><span class="hash">#</span> design</div>
+      <div class="channel"><span class="hash">#</span> off-topic</div>
+
+      <h2>Members</h2>
+      <div class="channel"><span class="status online"></span> Ada</div>
+      <div class="channel"><span class="status idle"></span> Linus</div>
+      <div class="channel"><span class="status dnd"></span> Grace</div>
+    </aside>
+
+    <!-- main -->
+    <main class="main">
+      <div class="topbar"># general — design-system preview</div>
+
+      <div class="content">
+
+        <section>
+          <h1>Discord-language theme</h1>
+          <p class="muted">
+            Pure HTML + CSS preview. Uses <code>../tokens.css</code> and Inter Variable
+            from rsms.me. <a href="#">Linkified text</a> uses <code>--text-link</code>.
+          </p>
+        </section>
+
+        <section class="card">
+          <h3>Buttons</h3>
+          <div class="row">
+            <button class="btn btn--primary">Primary</button>
+            <button class="btn btn--secondary">Secondary</button>
+            <button class="btn btn--danger">Danger</button>
+            <button class="btn btn--ghost">Ghost</button>
+            <button class="btn btn--primary" disabled style="opacity:.5;cursor:not-allowed;">Disabled</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Input</h3>
+          <input class="input" placeholder="Message #general" />
+        </section>
+
+        <section class="card">
+          <h3>Tabs</h3>
+          <div class="tabs">
+            <div class="tab active">Account</div>
+            <div class="tab">Profile</div>
+            <div class="tab">Privacy</div>
+            <div class="tab">Notifications</div>
+          </div>
+          <p style="margin-top:16px;">Tab body content lives here.</p>
+        </section>
+
+        <section class="card">
+          <h3>Dialog (mockup)</h3>
+          <div class="dialog-mock">
+            <h2>Are you sure?</h2>
+            <p class="muted">This will permanently delete the channel. This action cannot be undone.</p>
+            <div class="actions">
+              <button class="btn btn--ghost">Cancel</button>
+              <button class="btn btn--danger">Delete</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Toasts</h3>
+          <div class="row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+            <div class="toast"><strong>Account added</strong><span class="muted">user_3829 is now online.</span></div>
+            <div class="toast warning"><strong>Rate limited</strong><span class="muted">Try again in 5 seconds.</span></div>
+            <div class="toast danger"><strong>Login failed</strong><span class="muted">Invalid token.</span></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Color tokens</h3>
+          <div class="swatches">
+            <div class="swatch" style="background:var(--brand)">Brand<code>#5865F2</code></div>
+            <div class="swatch" style="background:var(--brand-hover)">Brand hover<code>#4752C4</code></div>
+            <div class="swatch" style="background:var(--green)">Green<code>#23A55A</code></div>
+            <div class="swatch" style="background:var(--yellow);color:#1a1a1a">Yellow<code>#F0B232</code></div>
+            <div class="swatch" style="background:var(--red)">Red<code>#F23F43</code></div>
+            <div class="swatch" style="background:var(--bg-floating)">Floating<code>#111214</code></div>
+            <div class="swatch" style="background:var(--bg-tertiary)">Tertiary<code>#1E1F22</code></div>
+            <div class="swatch" style="background:var(--bg-secondary)">Secondary<code>#2B2D31</code></div>
+            <div class="swatch" style="background:var(--bg-primary)">Primary<code>#313338</code></div>
+            <div class="swatch" style="background:var(--bg-message-hover)">Hover<code>#2E3035</code></div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

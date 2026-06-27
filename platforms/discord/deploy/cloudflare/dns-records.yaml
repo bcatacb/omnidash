@@ -1,0 +1,59 @@
+# DNS records for linktree.bond on Cloudflare.
+# Apply order matters: the zone must be active (NS delegated at registrar)
+# before any of these records will actually resolve.
+#
+# Apply with the curl commands in zone-setup-runbook.md §4, or paste each
+# block into the Cloudflare dashboard → DNS → Records.
+
+zone: linktree.bond
+
+records:
+  # ---------- Frontend (CF Pages) ----------
+  - name: gg
+    type: CNAME
+    content: discord-unibox.pages.dev
+    ttl: auto               # 1 = "Auto" in CF API
+    proxied: true
+    comment: "Discord Unibox SaaS frontend — CF Pages"
+
+  # ---------- API (Cloudflare Tunnel) ----------
+  - name: api.gg
+    type: CNAME
+    content: <TUNNEL_UUID>.cfargotunnel.com
+    ttl: auto
+    proxied: true
+    comment: "Discord Unibox API — routed through cloudflared on VPS"
+
+  # ---------- WebSocket (same backend, ws upgrade path) ----------
+  - name: ws.gg
+    type: CNAME
+    content: <TUNNEL_UUID>.cfargotunnel.com
+    ttl: auto
+    proxied: true
+    comment: "Discord Unibox WebSocket — same tunnel, ingress maps /ws"
+
+  # ---------- Zone-verification TXT records ----------
+  # Cloudflare's own zone verification happens via the NS change at the
+  # registrar — there is normally no extra TXT to add. The records below are
+  # placeholders for SaaS integrations that may later need DNS validation.
+
+  # SPF (placeholder — leave empty unless sending email from this subdomain)
+  # - name: gg
+  #   type: TXT
+  #   content: "v=spf1 -all"
+  #   ttl: 3600
+  #   proxied: false
+
+  # CF Pages custom-domain verification (only required for *some* edge cases
+  # where the CNAME is not proxied; ours is proxied so this is unused).
+  # - name: _cf-custom-hostname.gg
+  #   type: TXT
+  #   content: "<challenge-token-from-CF-dashboard>"
+  #   ttl: 60
+  #   proxied: false
+
+zone_settings:
+  ssl: strict              # Full (strict) — requires valid origin cert; cloudflared provides one.
+  always_use_https: true
+  min_tls_version: "1.2"
+  automatic_https_rewrites: true

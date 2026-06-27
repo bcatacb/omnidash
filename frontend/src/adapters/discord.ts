@@ -12,21 +12,25 @@ const DISCORD_BASE = (import.meta as any).env?.VITE_DISCORD_API || 'http://local
 // Keeps Discord's execution model (bridge + Playwright for certain actions).
 
 function mapDiscordConversation(item: any): OmniConversation {
+  // The Unibox API nests the peer (item.peer.{discordUserId,displayName,avatarUrl})
+  // and uses camelCase. Keep snake_case/flat fallbacks for older shapes.
+  const peer = item.peer || {}
+  const lastAt = item.lastMessageAt || item.last_message_at
   return {
-    id: item.id || `discord:${item.account_id}:${item.peer_discord_user_id || item.id}`,
+    id: item.id || `discord:${item.accountId || item.account_id}:${peer.discordUserId || item.peer_discord_user_id || item.id}`,
     platform: PLATFORM,
-    accountId: item.account_id || item.accountId || 'dc-acc-1',
+    accountId: item.accountId || item.account_id || 'dc-acc-1',
     peer: {
-      id: item.peer_discord_user_id || item.peerId || 'unknown',
-      displayName: item.peer_display_name || item.peerDisplayName || 'Discord User',
-      username: item.peer_username || item.peerUsername,
-      avatarUrl: item.peer_avatar_url || item.peerAvatar || null,
+      id: peer.discordUserId || item.peer_discord_user_id || item.peerId || 'unknown',
+      displayName: peer.displayName || item.peer_display_name || item.peerDisplayName || 'Discord User',
+      username: peer.username || item.peer_username || item.peerUsername,
+      avatarUrl: peer.avatarUrl || item.peer_avatar_url || item.peerAvatar || null,
     },
-    lastMessagePreview: item.last_message_preview || item.lastMessagePreview || null,
-    lastMessageAt: item.last_message_at ? new Date(item.last_message_at).toISOString() : item.lastMessageAt || null,
-    lastMessageDirection: item.last_message_direction,
-    unreadCount: item.unread_count || item.unreadCount || 0,
-    archived: !!item.archived,
+    lastMessagePreview: item.lastMessagePreview || item.last_message_preview || null,
+    lastMessageAt: lastAt ? new Date(lastAt).toISOString() : null,
+    lastMessageDirection: item.lastMessageDirection || item.last_message_direction,
+    unreadCount: item.unreadCount || item.unread_count || 0,
+    archived: item.label === 'archived' || !!item.archived,
     meta: item,
   }
 }
@@ -38,8 +42,8 @@ function mapDiscordMessage(item: any, convId: string): OmniMessage {
     platform: PLATFORM,
     direction: item.direction || (item.outgoing ? 'out' : 'in'),
     body: item.body || item.text || null,
-    sentAt: item.sent_at ? new Date(item.sent_at).toISOString() : item.sentAt || new Date().toISOString(),
-    author: item.author || (item.sender_name ? { name: item.sender_name } : undefined),
+    sentAt: item.sentAt ? new Date(item.sentAt).toISOString() : (item.sent_at ? new Date(item.sent_at).toISOString() : new Date().toISOString()),
+    author: item.author || (item.authorName ? { name: item.authorName, avatarUrl: item.authorAvatarUrl || null } : (item.sender_name ? { name: item.sender_name } : undefined)),
   }
 }
 
@@ -56,11 +60,11 @@ export const discordAdapter: PlatformTransformer = {
         platform: PLATFORM,
         label: a.label || a.username || 'Discord',
         username: a.username || '',
-        avatarUrl: a.avatar || null,
+        avatarUrl: a.avatarUrl || a.avatar || null,
         status: a.status || 'connected',
       }))
     } catch (e) {
-      console.error('Discord listAccounts failed', e)
+      console.warn('[discord] listAccounts FAILED:', e)
       return []
     }
   },
@@ -69,8 +73,10 @@ export const discordAdapter: PlatformTransformer = {
     try {
       const res = await fetch(`${DISCORD_BASE}/api/unibox/conversations`)
       if (!res.ok) throw new Error('backend')
-      let items = await res.json()
-      items = (items || []).map(mapDiscordConversation)
+      const data = await res.json()
+      // API returns { items, total, hasMore, summary } — not a bare array.
+      const raw = Array.isArray(data) ? data : (data?.items || [])
+      let items = raw.map(mapDiscordConversation)
 
       if (_opts?.accountIds?.length) {
         items = items.filter((c: any) => _opts.accountIds!.includes(c.accountId))
@@ -80,7 +86,7 @@ export const discordAdapter: PlatformTransformer = {
       }
       return items
     } catch (e) {
-      console.error('Discord listConversations failed', e)
+      console.warn('[discord] listConversations FAILED:', e)
       return []
     }
   },
@@ -93,7 +99,7 @@ export const discordAdapter: PlatformTransformer = {
       const items = await res.json()
       return (items || []).map((m: any) => mapDiscordMessage(m, convId))
     } catch (e) {
-      console.error('Discord getMessages failed', e)
+      console.warn('[discord] getMessages FAILED:', e)
       return []
     }
   },

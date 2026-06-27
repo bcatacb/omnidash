@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+# Minimal runtime deps — pure TLS sends, no browser.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      tini \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY app/server/package*.json ./
+# BuildKit cache: npm download cache survives across builds so re-installs
+# after package.json changes don't re-download packages from the internet.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install
+
+# Install the Chromium binary that matches playwright-core's expected version.
+# --with-deps also pulls in the required system libs (libnss3, libglib2.0, etc.)
+# that aren't in the slim base image.
+RUN npx playwright install chromium --with-deps
+
+COPY app/server/ ./
+
+ARG GIT_COMMIT=unknown
+ARG GIT_DATE=
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV GIT_DATE=$GIT_DATE
+
+COPY db/migrations/ /app/migrations/
+
+RUN npx tsc --project tsconfig.json
+
+EXPOSE 4000
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "dist/index.js"]

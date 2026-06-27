@@ -1,0 +1,22 @@
+# Keep the DuoPlus console image lean. The repo is a large monorepo; ignore
+# everything that isn't a DuoPlus workspace plus the usual build/secret cruft.
+node_modules
+**/node_modules
+.env
+**/.env
+proxy/.env
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+.git
+.github
+
+# Non-DuoPlus projects in this monorepo (do not ship them in the image).
+1Ambulance
+2Decon
+3Surgery
+4Verify
+Intake
+Music
+forge

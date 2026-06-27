@@ -33,3 +33,24 @@ Thumbs.db
 
 # Build artifact
 *.tar.gz
+
+# Local ops scripts (contain server credentials / API keys — never commit)
+probe.py
+ssh_cmd.py
+check.py
+ping_test.py
+nginx_setup.py
+
+# Data / DB / session dumps (real data — never commit)
+*.pgc
+*.sql.gz
+*.db
+*.session
+*.session-journal
+
+# Leaked-secret artifacts
+*.download
+
+# Temp + local agent dirs
+.tmp/
+.claude/

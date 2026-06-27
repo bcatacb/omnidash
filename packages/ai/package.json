@@ -1,0 +1,13 @@
+{
+  "name": "@omnibox/ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OmniBox AI assist — triage, draft-replies, and translation across the unified inbox. Provider-pluggable (Cloudflare Workers AI, OpenAI-compatible, etc.).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": { "@omnibox/core": "*" },
+  "devDependencies": { "typescript": "^5.5.0" }
+}

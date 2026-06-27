@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TokTik C2 — Security &amp; Data-Protection Audit</title>
+<style>
+  :root{
+    --ink:#1a1f29; --muted:#5b6573; --line:#e3e7ee; --bg:#fff;
+    --crit:#c0392b; --high:#e67e22; --med:#d4a017; --ok:#1e8e5a; --accent:#7a3ea3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#f4f6fa;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .page{max-width:880px;margin:24px auto;background:var(--bg);padding:30px 36px 26px;
+    box-shadow:0 2px 18px rgba(20,30,60,.10);border-radius:8px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:3px solid var(--accent);padding-bottom:12px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0;letter-spacing:.2px;}
+  .sub{color:var(--muted);font-size:11.5px;margin-top:3px;}
+  .meta{text-align:right;color:var(--muted);font-size:10.5px;line-height:1.5;}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--accent);margin:16px 0 7px;}
+  p{margin:0 0 7px;font-size:12px;line-height:1.5;}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;background:#f2f3f7;padding:1px 4px;border-radius:3px;}
+  .lead{font-size:12px;background:#fbf3f2;border-left:3px solid var(--crit);padding:9px 12px;border-radius:0 5px 5px 0;margin-bottom:4px;}
+  table{width:100%;border-collapse:collapse;margin-top:2px;}
+  td{padding:6px 8px;font-size:11.5px;vertical-align:top;border-bottom:1px solid var(--line);line-height:1.45;}
+  td.sev{width:74px;white-space:nowrap;} td.num{width:18px;color:var(--muted);font-weight:700;text-align:center;}
+  .chip{display:inline-block;font-size:9.5px;font-weight:700;color:#fff;border-radius:10px;padding:2px 8px;letter-spacing:.4px;text-transform:uppercase;}
+  .c-crit{background:var(--crit);} .c-high{background:var(--high);} .c-med{background:var(--med);} .c-ok{background:var(--ok);}
+  ul{margin:0;padding-left:16px;} li{font-size:11.5px;line-height:1.5;margin-bottom:4px;}
+  .cols{display:flex;gap:22px;margin-top:2px;} .col{flex:1;} .col h3{font-size:11.5px;margin:0 0 5px;}
+  .good{color:var(--ok);font-weight:600;}
+  .bottom{margin-top:14px;background:#f7f9fc;border:1px solid var(--line);border-radius:6px;padding:10px 13px;font-size:11.5px;line-height:1.5;}
+  footer{margin-top:14px;border-top:1px solid var(--line);padding-top:8px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between;}
+  @media print{body{background:#fff;}.page{box-shadow:none;margin:0;max-width:none;border-radius:0;padding:14px 18px;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div>
+      <h1>TokTik C2 — Security &amp; Data-Protection Audit</h1>
+      <div class="sub">Node/Express + Playwright + Postgres orchestrator &middot; infrastructure security review</div>
+    </div>
+    <div class="meta">
+      <div><b>Prepared:</b> 27 Jun 2026</div>
+      <div><b>Scope:</b> server API, auth, DB, exposure</div>
+      <div><b>Method:</b> read-only code &amp; host audit</div>
+    </div>
+  </header>
+
+  <p class="lead"><b>Bottom line up front.</b> The C2 API is published to the public internet
+  (<code>http://c2.effortlessmetaphor.org</code>) with <b>no working authentication on its data routes,
+  open CORS, and no TLS</b>, backed by a <b>direct superuser database connection</b>. As configured, anyone
+  who finds the hostname can read and modify every account, lead record (PII), and proxy credential, and
+  trigger message sends &mdash; no login required. This should be treated as an <b>active exposure and fixed today</b>.</p>
+
+  <h2>Findings &mdash; Ranked by Severity</h2>
+  <table>
+    <tr><td class="num">1</td><td class="sev"><span class="chip c-crit">Critical</span></td>
+      <td><b>Unauthenticated public API.</b> 68 routes; only <code>/api/auth/me</code> checks a token. There is
+        <b>no auth middleware</b> (<code>app.use</code> is only <code>cors</code> / <code>json</code> / static).
+        Accounts, leads, proxies, conversations and send endpoints are wide open and reachable from the internet via nginx.</td></tr>
+    <tr><td class="num">2</td><td class="sev"><span class="chip c-crit">Critical</span></td>
+      <td><b>Open CORS.</b> <code>cors()</code> with no allowlist lets any website call the API from a visitor&rsquo;s
+        browser, enabling cross-site data theft and actions against the running session.</td></tr>
+    <tr><td class="num">3</td><td class="sev"><span class="chip c-high">High</span></td>
+      <td><b>Default credentials &amp; broken token.</b> Auth falls back to <code>admin</code>/<code>admin</code>;
+        the issued token is <code>base64("admin:&lt;startup-time&gt;")</code> &mdash; not secret, no signature, no expiry.</td></tr>
+    <tr><td class="num">4</td><td class="sev"><span class="chip c-high">High</span></td>
+      <td><b>No TLS.</b> nginx serves <code>listen 80</code> only. Lead PII, proxy logins and the API token traverse
+        the internet in plaintext, exposed to network interception.</td></tr>
+    <tr><td class="num">5</td><td class="sev"><span class="chip c-high">High</span></td>
+      <td><b>Direct superuser Postgres.</b> A hand-rolled <code>pg.Pool(DATABASE_URL)</code> connects with full
+        privileges &mdash; no row-level security is possible. Any code path or leaked env grants total DB control.</td></tr>
+    <tr><td class="num">6</td><td class="sev"><span class="chip c-med">Medium</span></td>
+      <td><b>Identifier SQL injection risk.</b> The query builder parameterizes <code>.eq()</code> values
+        (good) but interpolates column/sort identifiers directly (<code>ORDER BY ${column}</code>,
+        <code>SELECT ${cols}</code>) &mdash; injectable if any route accepts user-supplied sort/column names.</td></tr>
+    <tr><td class="num">7</td><td class="sev"><span class="chip c-med">Medium</span></td>
+      <td><b>Sensitive data at rest, now exposed.</b> Plaintext proxy credentials and scraped-lead personal data
+        live in the DB that Finding 1 leaves reachable. A breach here is also a third-party PII breach.</td></tr>
+  </table>
+
+  <h2>What&rsquo;s Done Right</h2>
+  <p><span class="good">&#10003;</span> <code>.env</code> is correctly git-ignored (secrets are not committed).
+  &nbsp; <span class="good">&#10003;</span> <code>.eq()</code> filter values use parameterized queries.
+  &nbsp; <span class="good">&#10003;</span> Clear service/transport separation makes the fixes below localized, not a rewrite.</p>
+
+  <h2>Remediation</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Today (stop the exposure)</h3>
+      <ul>
+        <li><b>Add one auth middleware</b> (<code>app.use</code>) that rejects any request without a valid token,
+          mounted before all <code>/api</code> routes; exempt only <code>/api/auth/signin</code>.</li>
+        <li><b>Lock CORS</b> to your frontend origin only.</li>
+        <li><b>Put the API behind TLS</b> (nginx <code>443</code> + cert) and redirect 80&rarr;443; or firewall
+          4000 so it&rsquo;s not reachable except via HTTPS.</li>
+        <li><b>Set strong <code>DEFAULT_USER</code>/<code>DEFAULT_PASS</code></b> now to kill the admin/admin fallback.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>This week (harden)</h3>
+      <ul>
+        <li><b>Replace the token</b> with a signed, expiring JWT (server-side secret); stop deriving it from a timestamp.</li>
+        <li><b>Use a least-privilege DB role</b> for the app instead of the superuser connection string.</li>
+        <li><b>Allowlist sortable columns</b> against a fixed set before interpolating identifiers; never pass raw input.</li>
+        <li><b>Encrypt proxy credentials</b> at rest and rotate anything that traversed plaintext HTTP.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <b>Scope note.</b> This review covers <i>security and data-protection</i> only &mdash; protecting your
+    infrastructure, credentials, and the personal data you hold. It intentionally does <b>not</b> address platform
+    deliverability or account longevity, which for an automated outreach system depend on the messaging behavior itself,
+    not on configuration changes.
+  </div>
+
+  <footer>
+    <span>Confidential &mdash; internal security review</span>
+    <span>TokTik C2 Security Audit &middot; p.1</span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# DuoPlus Console CI
+# This monorepo contains many unrelated projects. This workflow scopes itself to
+# the DuoPlus console: the root `npm test` only exercises the DuoPlus workspaces
+# (shared, mock-server, proxy, web), and we additionally build the web bundle.
+name: DuoPlus Console CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+      - run: npm run build -w web
