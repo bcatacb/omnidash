@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.errors import (
     AuthKeyDuplicatedError,
@@ -812,6 +813,65 @@ def batch_exclude(
         for k in keys_to_delete:
             del CONVERSATIONS_CACHE[k]
         return {"user": _user_payload(conn, payload.userId)}
+
+
+class RoutingPayload(BaseModel):
+    proxy: str | None = None  # "socks5://user:pass@host:port" or "host:port[:user:pass]"; "" clears
+    api_id: int | None = None
+    api_hash: str | None = None
+
+
+def _proxy_str_to_json(proxy: str | None) -> str:
+    import json as _json
+    from urllib.parse import urlparse
+
+    if not proxy or not proxy.strip():
+        return "{}"
+    s = proxy.strip()
+    if "://" in s:
+        u = urlparse(s)
+        cfg: dict[str, Any] = {"type": (u.scheme or "socks5").lower(), "host": u.hostname, "port": u.port}
+        if u.username:
+            cfg["username"] = u.username
+        if u.password:
+            cfg["password"] = u.password
+    else:
+        parts = s.split(":")
+        cfg = {"type": "socks5", "host": parts[0], "port": int(parts[1]) if len(parts) > 1 else 1080}
+        if len(parts) >= 4:
+            cfg["username"], cfg["password"] = parts[2], parts[3]
+    return _json.dumps(cfg)
+
+
+@router.post("/api/v1/accounts/{account_id}/routing")
+def set_account_routing(
+    account_id: str, payload: RoutingPayload, auth_user_id: str = Depends(current_user_id)
+) -> dict[str, Any]:
+    """Assign a per-account proxy and/or Telegram API key (ban-risk hardening)."""
+    with db() as conn:
+        row = conn.execute(
+            "SELECT id FROM accounts WHERE id = ? AND user_id = ?",
+            (account_id, auth_user_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Account not found")
+        sets: list[str] = []
+        vals: list[Any] = []
+        if payload.proxy is not None:
+            sets.append("proxy_json = ?")
+            vals.append(_proxy_str_to_json(payload.proxy))
+        if payload.api_id is not None:
+            sets.append("api_id = ?")
+            vals.append(payload.api_id)
+        if payload.api_hash is not None:
+            sets.append("api_hash = ?")
+            vals.append(payload.api_hash)
+        if sets:
+            conn.execute(
+                f"UPDATE accounts SET {', '.join(sets)} WHERE id = ? AND user_id = ?",
+                (*vals, account_id, auth_user_id),
+            )
+    return {"ok": True}
 
 
 @router.post("/api/v1/accounts/{account_id}/set-2fa")

@@ -834,6 +834,13 @@ function UnifiedInbox({
   const [usingDemoUnified, setUsingDemoUnified] = useState(false)
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
   const [showAccountFilter, setShowAccountFilter] = useState(false)
+  // Per-account proxy + API routing (ban-risk hardening)
+  const [showRouting, setShowRouting] = useState(false)
+  const [routeAcct, setRouteAcct] = useState('')
+  const [routeProxy, setRouteProxy] = useState('')
+  const [routeApiId, setRouteApiId] = useState('')
+  const [routeApiHash, setRouteApiHash] = useState('')
+  const [routeMsg, setRouteMsg] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState(initialQuery || '')
   const [platformFilter, setPlatformFilter] = useState<'All' | 'Telegram' | 'Discord' | 'TikTok' | 'Instagram' | 'Snapchat' | 'Facebook'>('All')
@@ -1182,6 +1189,27 @@ function UnifiedInbox({
     }
   }
 
+  // Save per-account proxy + API key to the Telegram backend.
+  async function saveRouting() {
+    if (!routeAcct) { setRouteMsg('pick an account'); return }
+    setRouteMsg('saving…')
+    try {
+      const tok = (import.meta as any).env?.VITE_TELEGRAM_TOKEN
+      const body: any = {}
+      if (routeProxy.trim() !== '') body.proxy = routeProxy.trim()
+      if (routeApiId.trim() !== '') body.api_id = Number(routeApiId.trim())
+      if (routeApiHash.trim() !== '') body.api_hash = routeApiHash.trim()
+      const res = await fetch(`/tg-api/api/v1/accounts/${encodeURIComponent(routeAcct)}/routing`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(tok ? { authorization: `Bearer ${tok}` } : {}) },
+        body: JSON.stringify(body),
+      })
+      setRouteMsg(res.ok ? 'saved ✓ (restart backend to apply)' : `failed: ${res.status}`)
+    } catch (e) {
+      setRouteMsg('error: ' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+
   // AI draft via the server-side /ai-api endpoint (Cloudflare Workers AI).
   async function draftWithAI() {
     if (!selected) return
@@ -1335,6 +1363,14 @@ function UnifiedInbox({
             </button>
 
             <button
+              onClick={() => setShowRouting(true)}
+              className="ml-2 text-xs px-2 py-0.5 rounded-md border border-[var(--border)] hover:bg-[var(--bg-tertiary)]"
+              title="Assign per-account proxy + API key (Telegram)"
+            >
+              ⚙ Routing
+            </button>
+
+            <button
               onClick={() => {
                 const next = !isBulkMode
                 setIsBulkMode(next)
@@ -1395,6 +1431,52 @@ function UnifiedInbox({
             </div>
           )}
         </div>
+
+        {showRouting && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRouting(false)}>
+            <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-semibold text-lg">Account Routing — Proxy &amp; API</div>
+                <button onClick={() => setShowRouting(false)} className="text-[var(--text-muted)] hover:text-[var(--text-normal)]">×</button>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">Telegram account</label>
+                  <select value={routeAcct} onChange={e => setRouteAcct(e.target.value)}
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm">
+                    <option value="">— select —</option>
+                    {accounts.filter(a => a.platform === 'Telegram').map(a => (
+                      <option key={a.id} value={a.id}>{a.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-muted)]">Proxy <span className="opacity-60">(socks5://user:pass@host:port — blank = clear)</span></label>
+                  <input value={routeProxy} onChange={e => setRouteProxy(e.target.value)} placeholder="socks5://user:pass@host:port"
+                    className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-[var(--text-muted)]">api_id</label>
+                    <input value={routeApiId} onChange={e => setRouteApiId(e.target.value)} placeholder="1234567"
+                      className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div className="flex-[2]">
+                    <label className="text-xs text-[var(--text-muted)]">api_hash</label>
+                    <input value={routeApiHash} onChange={e => setRouteApiHash(e.target.value)} placeholder="abcdef0123..."
+                      className="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pt-1">
+                  <button onClick={saveRouting} disabled={!routeAcct}
+                    className="px-4 py-2 rounded bg-[var(--brand)] text-white text-sm font-medium disabled:opacity-50">Save</button>
+                  <span className="text-xs text-[var(--text-muted)]">{routeMsg}</span>
+                </div>
+                <p className="text-[10px] text-[var(--text-muted)]">Blank = keep unchanged. Proxy/API take effect after the backend restarts.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 && (
