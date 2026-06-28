@@ -851,6 +851,8 @@ function UnifiedInbox({
   const [interestedIds, setInterestedIds] = useState<Set<string>>(new Set())
   const [composer, setComposer] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
+  const [triage, setTriage] = useState<{ label: string; reason: string } | null>(null)
+  const [translatedNote, setTranslatedNote] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLInputElement>(null)
 
@@ -1155,6 +1157,8 @@ function UnifiedInbox({
 
   async function selectConversation(id: string) {
     setSelectedId(id)
+    setTriage(null)
+    setTranslatedNote('')
 
     // Optimistic UI read
     setConversations(prev =>
@@ -1183,6 +1187,15 @@ function UnifiedInbox({
           ...prev,
           [id]: uiMsgs,
         }))
+        // AI triage (fire-and-forget) for the badge
+        try {
+          const tmsgs = uiMsgs.map(m => ({ direction: m.outgoing ? 'out' : 'in', body: m.text }))
+          const tr = await fetch('/ai-api/triage', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ conversation: { platform: conv.platform, peer: { displayName: conv.name } }, messages: tmsgs }),
+          })
+          if (tr.ok) { const td = await tr.json(); setTriage({ label: td.label, reason: td.reason }) }
+        } catch { /* triage is best-effort */ }
       } catch (e) {
         console.warn('Failed to load messages or mark read via transformer', e)
       }
@@ -1207,6 +1220,25 @@ function UnifiedInbox({
       setRouteMsg(res.ok ? 'saved ✓ (restart backend to apply)' : `failed: ${res.status}`)
     } catch (e) {
       setRouteMsg('error: ' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+
+  // Translate the latest inbound message via /ai-api (Workers AI).
+  async function translateLatest() {
+    if (!selected) return
+    const msgs = messagesByConv[selected.id] || []
+    const lastIn = [...msgs].reverse().find(m => !m.outgoing && m.text)
+    if (!lastIn) { setTranslatedNote('(no inbound message to translate)'); return }
+    setTranslatedNote('translating…')
+    try {
+      const res = await fetch('/ai-api/translate', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: lastIn.text }),
+      })
+      const data = await res.json()
+      setTranslatedNote(data.text || '(translation failed)')
+    } catch (e) {
+      setTranslatedNote('(error)')
     }
   }
 
@@ -1602,6 +1634,20 @@ function UnifiedInbox({
                       const ch = t?.getCharacteristics?.()
                       return ch ? <span className="text-[9px] ml-1 text-[var(--text-muted)]">({ch.transport})</span> : null
                     })()}
+                    {triage && (
+                      <span
+                        title={triage.reason}
+                        className="text-[10px] ml-1 px-1.5 py-px rounded-full font-medium"
+                        style={(() => {
+                          const c = triage.label === 'interested' ? '#3ecf8e'
+                            : triage.label === 'needs_reply' ? '#f0b429'
+                            : triage.label === 'spam' ? '#ff6b6b' : '#9aa3b2'
+                          return { backgroundColor: `${c}22`, color: c }
+                        })()}
+                      >
+                        {triage.label.replace('_', ' ')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-[var(--text-muted)]">
                     {selected.accountLabel} · {selected.handle}
@@ -1668,6 +1714,13 @@ function UnifiedInbox({
 
             {/* Composer */}
             <div className="p-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]">
+              {translatedNote && (
+                <div className="mb-2 text-xs bg-[var(--bg-tertiary)] border border-[var(--border)] rounded px-3 py-2 flex items-start gap-2">
+                  <span>🌐</span>
+                  <span className="flex-1">{translatedNote}</span>
+                  <button onClick={() => setTranslatedNote('')} className="text-[var(--text-muted)] hover:text-[var(--text-normal)]">×</button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   ref={composerRef}
@@ -1686,6 +1739,13 @@ function UnifiedInbox({
                   })()})`}
                   className="flex-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--brand)]"
                 />
+                <button
+                  onClick={translateLatest}
+                  className="px-3 rounded-lg border border-[var(--border)] hover:bg-[var(--bg-tertiary)] text-sm whitespace-nowrap"
+                  title="Translate the latest incoming message to English"
+                >
+                  🌐
+                </button>
                 <button
                   onClick={draftWithAI}
                   disabled={aiBusy}
