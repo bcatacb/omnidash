@@ -46,32 +46,60 @@ function startIdleReaper() {
   }, 10_000)
 }
 
+// ── FAIL-CLOSED proxy gate ──────────────────────────────────────────────
+// Confirm the browser's REAL egress IP equals the account's proxy IP before
+// it is ever allowed to touch TikTok. If it can't be confirmed, we refuse.
+async function verifyEgress(context: BrowserContext, expectedIp: string): Promise<{ ok: boolean; egress: string | null }> {
+  const probes = ['https://api.ipify.org', 'https://ifconfig.me/ip', 'https://ipinfo.io/ip']
+  const page = await context.newPage()
+  try {
+    for (const u of probes) {
+      try {
+        await page.goto(u, { timeout: 20000, waitUntil: 'domcontentloaded' })
+        const text = (await page.evaluate(() => document.body?.innerText || '')).trim()
+        const m = text.match(/(\d{1,3}\.){3}\d{1,3}/)
+        if (m) return { ok: m[0] === expectedIp, egress: m[0] }
+      } catch {
+        /* try next probe */
+      }
+    }
+    return { ok: false, egress: null }
+  } finally {
+    await page.close().catch(() => {})
+  }
+}
+
 async function createSession(accountId: string, proxyUrl: string | null, sessionData: Record<string, unknown> | null): Promise<PooledSession> {
   let resolvedProxyUrl = proxyUrl
   let resolvedSessionData = sessionData
 
-  if (!resolvedSessionData) {
-    const { data: account } = await supabase
-      .from('tiktok_accounts')
-      .select('session_data, proxy_id')
-      .eq('id', accountId)
-      .single()
-
-    if (account) {
-      resolvedSessionData = account.session_data as any
-      if (account.proxy_id && !resolvedProxyUrl) {
-        const { data: proxy } = await supabase
-          .from('proxies')
-          .select('*')
-          .eq('id', account.proxy_id)
-          .single()
-        if (proxy) {
-          const auth = proxy.username ? `${proxy.username}:${proxy.password || ''}@` : ''
-          resolvedProxyUrl = `http://${auth}${proxy.host}:${proxy.port}`
-        }
+  // Always load the account's proxy + session — the proxy is REQUIRED for the
+  // fail-closed gate, even when sessionData was passed in by the caller.
+  const { data: account } = await supabase
+    .from('tiktok_accounts')
+    .select('session_data, proxy_id')
+    .eq('id', accountId)
+    .single()
+  if (account) {
+    if (!resolvedSessionData) resolvedSessionData = account.session_data as any
+    if (account.proxy_id && !resolvedProxyUrl) {
+      const { data: proxy } = await supabase
+        .from('proxies')
+        .select('*')
+        .eq('id', account.proxy_id)
+        .single()
+      if (proxy) {
+        const auth = proxy.username ? `${proxy.username}:${proxy.password || ''}@` : ''
+        resolvedProxyUrl = `http://${auth}${proxy.host}:${proxy.port}`
       }
     }
   }
+
+  // FAIL-CLOSED #1: no proxy => never launch a naked browser.
+  if (!resolvedProxyUrl) {
+    throw new Error(`[proxy-gate] account ${accountId} has NO proxy assigned — refusing to launch (fail-closed, no naked sessions)`)
+  }
+  const expectedIp = new URL(resolvedProxyUrl).hostname
 
   const fp = generateFingerprint(accountId)
 
@@ -84,7 +112,7 @@ async function createSession(accountId: string, proxyUrl: string | null, session
     ],
   }
 
-  if (resolvedProxyUrl) {
+  {
     const url = new URL(resolvedProxyUrl)
     launchOptions.proxy = {
       server: `${url.protocol}//${url.hostname}:${url.port}`,
@@ -113,6 +141,21 @@ async function createSession(accountId: string, proxyUrl: string | null, session
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => false })
   })
+
+  // FAIL-CLOSED #2: verify real egress IP == proxy IP BEFORE returning the session.
+  try {
+    const { ok, egress } = await verifyEgress(context, expectedIp)
+    if (!ok) {
+      await context.close().catch(() => {})
+      await browser.close().catch(() => {})
+      throw new Error(`[proxy-gate] ${accountId}: egress ${egress || 'UNKNOWN'} != proxy ${expectedIp} — refusing to navigate (fail-closed, would be NAKED)`)
+    }
+    console.log(`[proxy-gate] OK ${accountId}: egress ${egress} == proxy ${expectedIp}`)
+  } catch (e) {
+    await context.close().catch(() => {})
+    await browser.close().catch(() => {})
+    throw e
+  }
 
   return {
     accountId,
@@ -200,7 +243,9 @@ export async function destroySession(accountId: string): Promise<Record<string, 
   try {
     const state = await session.context.storageState()
     sessionData = state as unknown as Record<string, unknown>
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   await session.context.close().catch(() => {})
   await session.browser.close().catch(() => {})
