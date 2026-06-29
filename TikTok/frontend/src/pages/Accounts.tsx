@@ -141,6 +141,14 @@ export function Accounts() {
     if (id) await post(`/accounts/${id}/cancel-qr`, {}).catch(() => {})
   }
 
+  async function handleFill2fa(id: string) {
+    try {
+      await post(`/accounts/${id}/fill-2fa`, {})
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to fill 2FA')
+    }
+  }
+
   async function handleSaveSession(id: string) {
     try {
       await post(`/accounts/${id}/save-session`, {})
@@ -552,6 +560,13 @@ export function Accounts() {
               <span className="ml-2 text-zinc-400">Log into TikTok in the browser below, then Save Session.</span>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => vncAccountId && handleFill2fa(vncAccountId)}
+                className="flex items-center gap-1 rounded bg-amber-600 px-3 py-1.5 text-sm text-white hover:bg-amber-700"
+                title="Type the current authenticator (2FA) code into the page"
+              >
+                🔑 Fill 2FA
+              </button>
               <button
                 onClick={async () => { const id = vncAccountId; setVncUrl(null); setVncAccountId(null); await handleSaveSession(id) }}
                 className="flex items-center gap-1 rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"

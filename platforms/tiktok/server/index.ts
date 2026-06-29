@@ -244,6 +244,31 @@ app.post('/api/accounts/:id/save-session', asyncH(async (req, res) => {
   res.json({ ok: true, message: 'Session cookies saved. Account is now connected.' })
 }))
 
+// Auto-fill the authenticator 2FA step from the stored TOTP secret — generated
+// server-side and typed into the live page (no slow human relay of a 30s code).
+app.post('/api/accounts/:id/fill-2fa', asyncH(async (req, res) => {
+  const id = req.params.id as string
+  const { supabase } = await import('./utils/supabase.js')
+  const { data: acct } = await supabase.from('tiktok_accounts').select('totp_secret').eq('id', id).single()
+  if (!acct?.totp_secret) { res.status(400).json({ error: 'No 2FA secret stored for this account' }); return }
+  const live = getSession(id)
+  const page = live?.context.pages()[0]
+  if (!page) { res.status(400).json({ error: 'No live browser session for this account' }); return }
+  const { totp } = await import('./utils/totp.js')
+  const code = totp(acct.totp_secret)
+  try {
+    const input = page.locator('input[name="code"], input[placeholder*="code" i], input[inputmode="numeric"], input[maxlength="6"]').first()
+    await input.click({ timeout: 8000 })
+    await input.fill('')
+    await input.type(code, { delay: 60 })
+    await page.locator('button[type="submit"], button:has-text("Next"), [data-e2e="login-button"]').first().click({ timeout: 5000 }).catch(() => {})
+    console.log(`[2fa] filled code for account ${id}`)
+    res.json({ ok: true, message: 'Entered current 2FA code' })
+  } catch (e: any) {
+    res.status(500).json({ error: 'fill-2fa failed: ' + (e?.message || 'unknown') })
+  }
+}))
+
 app.post('/api/accounts/:id/disconnect', asyncH(async (req, res) => {
   const id = req.params.id as string
   const sessionData = await destroySession(id)
