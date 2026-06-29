@@ -10,13 +10,20 @@ interface PooledSession {
   lastUsed: number
   pinned: boolean
   busy: boolean
+  headed: boolean
   waiters: Array<() => void>
 }
 
 interface QueuedTask {
   accountId: string
+  headed: boolean
   resolve: (session: PooledSession) => void
   reject: (err: Error) => void
+}
+
+export interface AcquireOpts {
+  /** Launch a VISIBLE browser (into the X display, for VNC manual login). Default false (headless). */
+  headed?: boolean
 }
 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_BROWSERS || '5')
@@ -69,7 +76,7 @@ async function verifyEgress(context: BrowserContext, expectedIp: string): Promis
   }
 }
 
-async function createSession(accountId: string, proxyUrl: string | null, sessionData: Record<string, unknown> | null): Promise<PooledSession> {
+async function createSession(accountId: string, proxyUrl: string | null, sessionData: Record<string, unknown> | null, headed: boolean): Promise<PooledSession> {
   let resolvedProxyUrl = proxyUrl
   let resolvedSessionData = sessionData
 
@@ -103,11 +110,17 @@ async function createSession(accountId: string, proxyUrl: string | null, session
 
   const fp = generateFingerprint(accountId)
 
+  // headed = visible browser (rendered into the X display for VNC manual login).
+  // headless = invisible (background automation: inbox-sync, send). Decided per call,
+  // NOT via a global env flag — auth flows pass { headed: true }, everything else defaults headless.
   const launchOptions: Record<string, unknown> = {
-    headless: process.env.HEADED_MODE !== 'true',
+    headless: !headed,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
+      '--disable-dev-shm-usage',
+      // Never leak the real IP via WebRTC/STUN even with the HTTP proxy set.
+      '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
       `--window-size=${fp.viewport.width},${fp.viewport.height}`,
     ],
   }
@@ -138,8 +151,32 @@ async function createSession(accountId: string, proxyUrl: string | null, session
 
   const context = await browser.newContext(contextOptions)
 
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false })
+  // Fingerprint hardening — runs before any page script. Masks the headless/Xvfb
+  // tells: WebGL renderer (the big one), platform, hardwareConcurrency, deviceMemory,
+  // window.chrome. Values are per-account-consistent (from generateFingerprint).
+  await context.addInitScript((fpData: any) => {
+    try { Object.defineProperty(navigator, 'webdriver', { get: () => false }) } catch { /* noop */ }
+    try { Object.defineProperty(navigator, 'platform', { get: () => fpData.platform }) } catch { /* noop */ }
+    try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => fpData.hardwareConcurrency }) } catch { /* noop */ }
+    try { Object.defineProperty(navigator, 'deviceMemory', { get: () => fpData.deviceMemory }) } catch { /* noop */ }
+    try { if (!(window as any).chrome) (window as any).chrome = { runtime: {} } } catch { /* noop */ }
+    const patch = (proto: any) => {
+      if (!proto || !proto.getParameter) return
+      const orig = proto.getParameter
+      proto.getParameter = function (p: number) {
+        if (p === 37445) return fpData.webglVendor   // UNMASKED_VENDOR_WEBGL
+        if (p === 37446) return fpData.webglRenderer // UNMASKED_RENDERER_WEBGL
+        return orig.call(this, p)
+      }
+    }
+    try { patch((window as any).WebGLRenderingContext && (window as any).WebGLRenderingContext.prototype) } catch { /* noop */ }
+    try { patch((window as any).WebGL2RenderingContext && (window as any).WebGL2RenderingContext.prototype) } catch { /* noop */ }
+  }, {
+    platform: fp.platform,
+    webglVendor: fp.webglVendor,
+    webglRenderer: fp.webglRenderer,
+    hardwareConcurrency: fp.hardwareConcurrency,
+    deviceMemory: fp.deviceMemory,
   })
 
   // FAIL-CLOSED #2: verify real egress IP == proxy IP BEFORE returning the session.
@@ -150,7 +187,7 @@ async function createSession(accountId: string, proxyUrl: string | null, session
       await browser.close().catch(() => {})
       throw new Error(`[proxy-gate] ${accountId}: egress ${egress || 'UNKNOWN'} != proxy ${expectedIp} — refusing to navigate (fail-closed, would be NAKED)`)
     }
-    console.log(`[proxy-gate] OK ${accountId}: egress ${egress} == proxy ${expectedIp}`)
+    console.log(`[proxy-gate] OK ${accountId}: egress ${egress} == proxy ${expectedIp} (headed=${headed})`)
   } catch (e) {
     await context.close().catch(() => {})
     await browser.close().catch(() => {})
@@ -164,6 +201,7 @@ async function createSession(accountId: string, proxyUrl: string | null, session
     lastUsed: Date.now(),
     pinned: false,
     busy: false,
+    headed,
     waiters: [],
   }
 }
@@ -176,7 +214,7 @@ function drainQueue() {
       existing.lastUsed = Date.now()
       task.resolve(existing)
     } else {
-      createSession(task.accountId, null, null)
+      createSession(task.accountId, null, null, task.headed)
         .then((session) => {
           activeSessions.set(task.accountId, session)
           startIdleReaper()
@@ -190,12 +228,23 @@ function drainQueue() {
 export async function acquireSession(
   accountId: string,
   proxyUrl: string | null = null,
-  sessionData: Record<string, unknown> | null = null
+  sessionData: Record<string, unknown> | null = null,
+  opts: AcquireOpts = {}
 ): Promise<PooledSession> {
-  const existing = activeSessions.get(accountId)
+  const headed = opts.headed ?? false
+
+  let existing = activeSessions.get(accountId)
+  // If a session exists in the WRONG mode (e.g. a headless sync session, but we now
+  // need a headed browser for manual login), tear it down and recreate in the right mode.
+  if (existing && existing.headed !== headed) {
+    console.log(`[pool] ${accountId}: mode switch (headed ${existing.headed} -> ${headed}) — recreating`)
+    await destroySession(accountId)
+    existing = undefined
+  }
+
   if (existing) {
     if (existing.busy) {
-      await new Promise<void>(resolve => existing.waiters.push(resolve))
+      await new Promise<void>(resolve => existing!.waiters.push(resolve))
     }
     existing.lastUsed = Date.now()
     existing.busy = true
@@ -203,7 +252,7 @@ export async function acquireSession(
   }
 
   if (activeSessions.size < MAX_CONCURRENT) {
-    const session = await createSession(accountId, proxyUrl, sessionData)
+    const session = await createSession(accountId, proxyUrl, sessionData, headed)
     session.busy = true
     activeSessions.set(accountId, session)
     startIdleReaper()
@@ -211,7 +260,7 @@ export async function acquireSession(
   }
 
   return new Promise((resolve, reject) => {
-    taskQueue.push({ accountId, resolve, reject })
+    taskQueue.push({ accountId, headed, resolve, reject })
   })
 }
 
@@ -262,6 +311,7 @@ export function getPoolStatus() {
     queued: taskQueue.length,
     sessions: Array.from(activeSessions.values()).map((s) => ({
       accountId: s.accountId,
+      headed: s.headed,
       idleMs: Date.now() - s.lastUsed,
     })),
   }

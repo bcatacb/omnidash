@@ -55,6 +55,8 @@ export function Accounts() {
   const [qrAccountId, setQrAccountId] = useState<string | null>(null)
   const [qrImage, setQrImage] = useState<string | null>(null)
   const [qrStatus, setQrStatus] = useState<'waiting' | 'success' | 'expired'>('waiting')
+  const [vncUrl, setVncUrl] = useState<string | null>(null)
+  const [vncAccountId, setVncAccountId] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -108,9 +110,11 @@ export function Accounts() {
   async function handleConnect(id: string) {
     setConnecting((prev) => new Set(prev).add(id))
     try {
-      await post(`/accounts/${id}/connect`, {})
+      const res = await post<{ ok: boolean; vncUrl?: string }>(`/accounts/${id}/connect`, {})
       setLiveSessions((prev) => new Set(prev).add(id))
       setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, status: 'connected' as const } : a))
+      // Open the embedded remote-browser (auto-connects via the minted token — no password entry).
+      if (res?.vncUrl) { setVncUrl(res.vncUrl); setVncAccountId(id) }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to connect')
     } finally {
@@ -537,6 +541,37 @@ export function Accounts() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {vncUrl && vncAccountId && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/80 p-4 backdrop-blur-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm text-white">
+              <span className="font-semibold">Manual login</span>
+              <span className="ml-2 text-zinc-400">Log into TikTok in the browser below, then Save Session.</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => { const id = vncAccountId; setVncUrl(null); setVncAccountId(null); await handleSaveSession(id) }}
+                className="flex items-center gap-1 rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
+              >
+                <Save size={14} /> Save Session
+              </button>
+              <button
+                onClick={async () => { const id = vncAccountId; setVncUrl(null); setVncAccountId(null); await handleDisconnect(id) }}
+                className="rounded bg-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <iframe
+            src={vncUrl}
+            className="w-full flex-1 rounded-lg border border-zinc-700 bg-black"
+            title="Remote login browser"
+            allow="clipboard-read; clipboard-write"
+          />
         </div>
       )}
 

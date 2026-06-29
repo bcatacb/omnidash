@@ -70,6 +70,24 @@ const DEFAULT_USER = process.env.DEFAULT_USER || 'admin'
 const DEFAULT_PASS = process.env.DEFAULT_PASS || 'admin'
 const TOKEN = Buffer.from(`${DEFAULT_USER}:${Date.now()}`).toString('base64')
 
+// ── Ephemeral VNC access tokens (embedded remote-browser login) ──
+// Connect mints a short-lived token; the noVNC token-proxy validates it per
+// connection (so the customer never types a password and old links die fast).
+const NOVNC_BASE_URL = process.env.NOVNC_BASE_URL || ''
+const vncTokens = new Map<string, { accountId: string; exp: number }>()
+function mintVncToken(accountId: string): string {
+  const t = (globalThis.crypto.randomUUID() + globalThis.crypto.randomUUID()).replace(/-/g, '')
+  vncTokens.set(t, { accountId, exp: Date.now() + 10 * 60_000 })
+  // opportunistic cleanup
+  for (const [k, v] of vncTokens) if (v.exp < Date.now()) vncTokens.delete(k)
+  return t
+}
+app.get('/api/vnc/validate', asyncH(async (req, res) => {
+  const rec = vncTokens.get(String(req.query.token || ''))
+  if (!rec || rec.exp < Date.now()) { res.status(401).json({ ok: false }); return }
+  res.json({ ok: true, accountId: rec.accountId })
+}))
+
 app.post('/api/auth/signin', asyncH(async (req, res) => {
   const { email, password } = req.body
   if (email === DEFAULT_USER && password === DEFAULT_PASS) {
@@ -137,7 +155,9 @@ app.post('/api/accounts/:id/connect', asyncH(async (req, res) => {
     }
   }
 
-  const session = await acquireSession(id, proxyUrl, account.session_data)
+  // headed:true => visible browser in the X display so the operator can log in via VNC.
+  // (auth is headed; background ops like inbox-sync stay headless — decided per call, no env flip.)
+  const session = await acquireSession(id, proxyUrl, account.session_data, { headed: true })
   pinSession(id)
   const page = session.context.pages()[0] || await session.context.newPage()
 
@@ -146,9 +166,16 @@ app.post('/api/accounts/:id/connect', asyncH(async (req, res) => {
     .then(() => console.log(`[connect] browser ready for ${account.username}`))
     .catch((err) => console.log(`[connect] nav warning for ${account.username}: ${err.message}`))
 
+  // Mint a one-shot VNC token + auto-connect URL so the dashboard can embed the
+  // live browser with zero manual entry (token auto-injected, expires in 10 min).
+  const vncToken = mintVncToken(id)
+  const vncUrl = NOVNC_BASE_URL
+    ? `${NOVNC_BASE_URL}/vnc.html?autoconnect=true&resize=remote&path=${encodeURIComponent('websockify?token=' + vncToken)}`
+    : null
+
   await updateAccount(id, { status: 'connected' })
   broadcast('account:updated', { ...account, status: 'connected' })
-  res.json({ ok: true, message: 'Browser opened — log in to TikTok manually, then click Save Session in the UI' })
+  res.json({ ok: true, message: 'Browser opened — log in to TikTok manually, then click Save Session in the UI', vncUrl })
 }))
 
 // ── Account Connect via QR (headless — scan with TikTok app) ─
